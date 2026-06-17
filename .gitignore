@@ -1,0 +1,19 @@
+# macOS metadata
+.DS_Store
+
+# Generated build trees
+/build/
+/build-awslc/
+/build-awslc-zlibng/
+
+# Generated logs, profiles, and release output
+/logs/
+/profiles/
+/release/
+/dist/
+/homebrew-tap/
+
+# Local editor and shell state
+*.swp
+*.swo
+*~
