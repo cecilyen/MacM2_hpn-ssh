@@ -27,6 +27,25 @@ Homebrew formulae are intentionally not published in this repository yet.
 
 ## Install From GitHub Release
 
+Install the minimal Homebrew runtime libraries first:
+
+```sh
+brew install aws-lc zlib-ng-compat libedit
+```
+
+Those are the only Homebrew packages required to run all binaries in the current
+AWS-LC + zlib-ng release archive. The packaged tools also link macOS-provided
+system libraries and frameworks such as Kerberos, PAM, libresolv, libSystem,
+libsandbox, and system ncurses.
+
+Runtime linkage checked from the release archive:
+
+| Binary set | Homebrew runtime libraries |
+| --- | --- |
+| `hpnssh`, `hpnscp`, `hpnssh-add`, `hpnssh-agent`, `hpnssh-keygen`, `hpnssh-keyscan`, `hpnssh-keysign`, `hpnssh-pkcs11-helper`, `hpnssh-sk-helper`, `hpnsshd`, `hpnsshd-auth`, `hpnsshd-session` | `aws-lc`, `zlib-ng-compat` |
+| `hpnsftp` | `libedit` |
+| `hpnsftp-server` | none from Homebrew |
+
 Download the release archive from this repository's GitHub Releases page, then:
 
 ```sh
@@ -58,11 +77,15 @@ codesign --force --sign - "$HOME/bin/hpnssh"
 
 ## Compile From Source
 
-Install dependencies:
+Install build dependencies:
 
 ```sh
 brew install autoconf automake libtool libedit aws-lc zlib-ng-compat
 ```
+
+The build dependencies are broader than the runtime set because compiling from
+source requires Autoconf, Automake, and Libtool. Running the released binaries
+does not require those build tools.
 
 Clone this repository:
 
