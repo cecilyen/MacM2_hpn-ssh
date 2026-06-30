@@ -9,6 +9,7 @@ of Git.
 ```text
 README.md
 docs/
+docs/SYSTEM_REQUIREMENTS.md
 scripts/
 projects/
 ```
@@ -18,6 +19,7 @@ projects/
 ```text
 build/
 build-awslc/
+build-awslc-system-zlib/
 build-awslc-zlibng/
 logs/
 profiles/

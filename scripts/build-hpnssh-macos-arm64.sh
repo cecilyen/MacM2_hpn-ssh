@@ -14,6 +14,8 @@ CRYPTO_FORMULA="${HPNSSH_CRYPTO_FORMULA:-openssl@3}"
 CRYPTO_PREFIX_OVERRIDE="${HPNSSH_CRYPTO_PREFIX:-${OPENSSL_PREFIX:-}}"
 CRYPTO_HEADER="${HPNSSH_CRYPTO_HEADER:-include/openssl/ssl.h}"
 CRYPTO_LIB_GLOB="${HPNSSH_CRYPTO_LIB_GLOB:-lib/libcrypto.*}"
+ZLIB_MODE="${HPNSSH_ZLIB_MODE:-homebrew}"
+LIBEDIT_MODE="${HPNSSH_LIBEDIT_MODE:-homebrew}"
 KERBEROS_ROOT="${HPNSSH_KERBEROS_ROOT:-/usr}"
 KRB5CONF="${KRB5CONF:-${KERBEROS_ROOT}/bin/krb5-config}"
 LOG_BASENAME="${HPNSSH_LOG_BASENAME:-hpnssh-build}"
@@ -48,6 +50,10 @@ Environment:
   HPNSSH_CRYPTO_NAME     Human-readable crypto provider name. Default: OpenSSL 3.
   HPNSSH_CRYPTO_FORMULA  Homebrew formula for libcrypto. Default: openssl@3.
   HPNSSH_CRYPTO_PREFIX   Explicit libcrypto prefix. OPENSSL_PREFIX is also honored.
+  HPNSSH_ZLIB_MODE       zlib provider: homebrew or system. Default: homebrew.
+  HPNSSH_LIBEDIT_MODE    libedit provider: homebrew, system, or disabled. Default: homebrew.
+  HPNSSH_BASE_OPT_FLAGS  Override base C/C++ optimization flags.
+  HPNSSH_BASE_LDFLAGS    Override base linker optimization flags.
   HPNSSH_KERBEROS_ROOT   Kerberos root passed to configure. Default: /usr.
   HPNSSH_LOG_BASENAME    Build log basename. Default: hpnssh-build.
   CC, CXX                Override Apple compiler paths.
@@ -120,6 +126,19 @@ require_linkage_contains() {
     die "Validation failed: ${label} linkage does not contain ${expected}"
 }
 
+require_binary_linkage_contains() {
+  local binary="$1"
+  local label="$2"
+  local pattern="$3"
+  local expected="$4"
+  local linkage
+
+  linkage="$(macho_linkage "$binary" "$pattern")"
+  log "$(basename "$binary") $label linkage: ${linkage:-not found}"
+  [[ "$linkage" == *"$expected"* ]] ||
+    die "Validation failed: $(basename "$binary") ${label} linkage does not contain ${expected}"
+}
+
 reject_linkage() {
   local label="$1"
   local pattern="$2"
@@ -129,6 +148,18 @@ reject_linkage() {
   log "$label linkage: ${linkage:-not found}"
   [[ -z "$linkage" ]] ||
     die "Validation failed: unexpected ${label} linkage: $linkage"
+}
+
+reject_binary_linkage() {
+  local binary="$1"
+  local label="$2"
+  local pattern="$3"
+  local linkage
+
+  linkage="$(macho_linkage "$binary" "$pattern")"
+  log "$(basename "$binary") $label linkage: ${linkage:-not found}"
+  [[ -z "$linkage" ]] ||
+    die "Validation failed: unexpected $(basename "$binary") ${label} linkage: $linkage"
 }
 
 while (($#)); do
@@ -180,6 +211,14 @@ done
 if [[ -n "$TAG" ]]; then
   [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.9.0"
 fi
+case "$ZLIB_MODE" in
+  homebrew|system) ;;
+  *) die "HPNSSH_ZLIB_MODE must be either homebrew or system" ;;
+esac
+case "$LIBEDIT_MODE" in
+  homebrew|system|disabled) ;;
+  *) die "HPNSSH_LIBEDIT_MODE must be homebrew, system, or disabled" ;;
+esac
 
 WORKDIR="$(abs_path "$WORKDIR")"
 PREFIX="$(abs_path "$PREFIX")"
@@ -197,6 +236,8 @@ log "Workdir: $WORKDIR"
 log "Version marker: ${HPN_MARKER:-disabled}"
 log "Crypto provider: $CRYPTO_NAME"
 log "Crypto formula: $CRYPTO_FORMULA"
+log "zlib mode: $ZLIB_MODE"
+log "libedit mode: $LIBEDIT_MODE"
 log "Log: $LOG_FILE"
 
 require_cmd git
@@ -265,15 +306,31 @@ ensure_brew_formula() {
 }
 
 CRYPTO_PREFIX="${CRYPTO_PREFIX_OVERRIDE:-$(ensure_brew_formula "$CRYPTO_FORMULA" "$CRYPTO_HEADER" "$CRYPTO_LIB_GLOB")}"
-ZLIB_PREFIX="${ZLIB_PREFIX:-$(ensure_brew_formula zlib include/zlib.h 'lib/libz.*')}"
+if [[ "$ZLIB_MODE" == "system" ]]; then
+  ZLIB_PREFIX="${ZLIB_PREFIX:-/usr}"
+else
+  ZLIB_PREFIX="${ZLIB_PREFIX:-$(ensure_brew_formula zlib include/zlib.h 'lib/libz.*')}"
+fi
 AUTOCONF_PREFIX="${AUTOCONF_PREFIX:-$(brew_prefix autoconf)}"
 AUTOMAKE_PREFIX="${AUTOMAKE_PREFIX:-$(brew_prefix automake)}"
 LIBTOOL_PREFIX="${LIBTOOL_PREFIX:-$(brew_prefix libtool)}"
 PKGCONF_PREFIX="${PKGCONF_PREFIX:-$(brew_prefix pkg-config || brew_prefix pkgconf || true)}"
-LIBEDIT_PREFIX="${LIBEDIT_PREFIX:-$(brew_prefix libedit || true)}"
+case "$LIBEDIT_MODE" in
+  homebrew)
+    LIBEDIT_PREFIX="${LIBEDIT_PREFIX:-$(brew_prefix libedit || true)}"
+    ;;
+  system)
+    LIBEDIT_PREFIX="${LIBEDIT_PREFIX:-/usr}"
+    ;;
+  disabled)
+    LIBEDIT_PREFIX=""
+    ;;
+esac
 
 formula_has_files "$CRYPTO_PREFIX" "$CRYPTO_HEADER" "$CRYPTO_LIB_GLOB" || die "$CRYPTO_NAME headers/libs not found under HPNSSH_CRYPTO_PREFIX=$CRYPTO_PREFIX"
-formula_has_files "$ZLIB_PREFIX" include/zlib.h 'lib/libz.*' || die "zlib headers/libs not found under ZLIB_PREFIX=$ZLIB_PREFIX"
+if [[ "$ZLIB_MODE" == "homebrew" ]]; then
+  formula_has_files "$ZLIB_PREFIX" include/zlib.h 'lib/libz.*' || die "zlib headers/libs not found under ZLIB_PREFIX=$ZLIB_PREFIX"
+fi
 [[ -d "$AUTOCONF_PREFIX/bin" ]] || die "Homebrew autoconf not found."
 [[ -d "$AUTOMAKE_PREFIX/bin" ]] || die "Homebrew automake not found."
 [[ -d "$LIBTOOL_PREFIX/bin" ]] || die "Homebrew libtool not found."
@@ -293,6 +350,16 @@ require_cmd glibtoolize
 SDKROOT="${SDKROOT:-$(xcrun --show-sdk-path)}"
 [[ -d "$SDKROOT" ]] || die "macOS SDK path not found: $SDKROOT"
 export SDKROOT
+if [[ "$ZLIB_MODE" == "system" ]]; then
+  [[ -f "${SDKROOT}/usr/include/zlib.h" ]] || die "system zlib header not found in SDK: ${SDKROOT}/usr/include/zlib.h"
+  [[ -f "${SDKROOT}/usr/lib/libz.tbd" || -f "${SDKROOT}/usr/lib/libz.1.tbd" ]] ||
+    die "system zlib linker stub not found in SDK: ${SDKROOT}/usr/lib/libz.tbd"
+fi
+if [[ "$LIBEDIT_MODE" == "system" ]]; then
+  [[ -f "${SDKROOT}/usr/include/histedit.h" ]] || die "system libedit header not found in SDK: ${SDKROOT}/usr/include/histedit.h"
+  [[ -f "${SDKROOT}/usr/lib/libedit.tbd" || -f "${SDKROOT}/usr/lib/libedit.3.tbd" ]] ||
+    die "system libedit linker stub not found in SDK: ${SDKROOT}/usr/lib/libedit.tbd"
+fi
 
 CC="${CC:-$(xcrun -find clang)}"
 CXX="${CXX:-$(xcrun -find clang++)}"
@@ -372,30 +439,60 @@ done
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
 [[ "$NCPU" =~ ^[0-9]+$ && "$NCPU" -gt 0 ]] || NCPU=1
 
-BASE_OPT_FLAGS="${ARCH_FLAGS} -O3 -flto -g0"
-if [[ -n "$CPU_FLAG" ]]; then
-  BASE_OPT_FLAGS="${BASE_OPT_FLAGS} ${CPU_FLAG}"
+if [[ -n "${HPNSSH_BASE_OPT_FLAGS:-}" ]]; then
+  BASE_OPT_FLAGS="${HPNSSH_BASE_OPT_FLAGS}"
+else
+  BASE_OPT_FLAGS="${ARCH_FLAGS} -O3 -flto -g0"
+  if [[ -n "$CPU_FLAG" ]]; then
+    BASE_OPT_FLAGS="${BASE_OPT_FLAGS} ${CPU_FLAG}"
+  fi
+fi
+BASE_LINK_FLAGS="${HPNSSH_BASE_LDFLAGS:-${ARCH_FLAGS} -flto}"
+
+ZLIB_CPPFLAGS=""
+ZLIB_LDFLAGS=""
+ZLIB_PKG_CONFIG_PATH=""
+ZLIB_LINKAGE_EXPECTED="${ZLIB_PREFIX}/lib/libz"
+if [[ "$ZLIB_MODE" == "homebrew" ]]; then
+  ZLIB_CPPFLAGS="-I${ZLIB_PREFIX}/include"
+  ZLIB_LDFLAGS="-L${ZLIB_PREFIX}/lib -Wl,-rpath,${ZLIB_PREFIX}/lib"
+  ZLIB_PKG_CONFIG_PATH="${ZLIB_PREFIX}/lib/pkgconfig:"
+else
+  ZLIB_LINKAGE_EXPECTED="/usr/lib/libz"
 fi
 
 export CFLAGS="${CFLAGS:-} ${BASE_OPT_FLAGS}"
 export CXXFLAGS="${CXXFLAGS:-} ${BASE_OPT_FLAGS}"
-export CPPFLAGS="${CPPFLAGS:-} -isysroot ${SDKROOT} -I${CRYPTO_PREFIX}/include -I${ZLIB_PREFIX}/include"
-export LDFLAGS="${LDFLAGS:-} ${ARCH_FLAGS} -flto -isysroot ${SDKROOT} -Wl,-search_paths_first -L${CRYPTO_PREFIX}/lib -L${ZLIB_PREFIX}/lib -Wl,-rpath,${CRYPTO_PREFIX}/lib -Wl,-rpath,${ZLIB_PREFIX}/lib -framework Kerberos"
-export PKG_CONFIG_PATH="${CRYPTO_PREFIX}/lib/pkgconfig:${ZLIB_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+export CPPFLAGS="${CPPFLAGS:-} -isysroot ${SDKROOT} -I${CRYPTO_PREFIX}/include ${ZLIB_CPPFLAGS}"
+export LDFLAGS="${LDFLAGS:-} ${BASE_LINK_FLAGS} -isysroot ${SDKROOT} -Wl,-search_paths_first -L${CRYPTO_PREFIX}/lib ${ZLIB_LDFLAGS} -Wl,-rpath,${CRYPTO_PREFIX}/lib -framework Kerberos"
+export PKG_CONFIG_PATH="${CRYPTO_PREFIX}/lib/pkgconfig:${ZLIB_PKG_CONFIG_PATH}${PKG_CONFIG_PATH:-}"
 export KRB5CONF
 if is_awslc_build; then
   export CPPFLAGS="${CPPFLAGS} -DHPNSSH_AWSLC"
 fi
 
 LIBEDIT_CONFIGURE_ARG=()
-if formula_has_files "$LIBEDIT_PREFIX" include/histedit.h 'lib/libedit.*'; then
-  export CPPFLAGS="${CPPFLAGS} -I${LIBEDIT_PREFIX}/include"
-  export LDFLAGS="${LDFLAGS} -L${LIBEDIT_PREFIX}/lib -Wl,-rpath,${LIBEDIT_PREFIX}/lib"
-  export PKG_CONFIG_PATH="${LIBEDIT_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
-  LIBEDIT_CONFIGURE_ARG=("--with-libedit=${LIBEDIT_PREFIX}")
-elif [[ -n "$LIBEDIT_PREFIX" ]]; then
-  warn "Homebrew libedit prefix exists but headers/libs were not found under $LIBEDIT_PREFIX; building without libedit."
-fi
+LIBEDIT_LINKAGE_EXPECTED=""
+case "$LIBEDIT_MODE" in
+  homebrew)
+    if formula_has_files "$LIBEDIT_PREFIX" include/histedit.h 'lib/libedit.*'; then
+      export CPPFLAGS="${CPPFLAGS} -I${LIBEDIT_PREFIX}/include"
+      export LDFLAGS="${LDFLAGS} -L${LIBEDIT_PREFIX}/lib -Wl,-rpath,${LIBEDIT_PREFIX}/lib"
+      export PKG_CONFIG_PATH="${LIBEDIT_PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}"
+      LIBEDIT_CONFIGURE_ARG=("--with-libedit=${LIBEDIT_PREFIX}")
+      LIBEDIT_LINKAGE_EXPECTED="${LIBEDIT_PREFIX}/lib/libedit"
+    elif [[ -n "$LIBEDIT_PREFIX" ]]; then
+      warn "Homebrew libedit prefix exists but headers/libs were not found under $LIBEDIT_PREFIX; building without libedit."
+    fi
+    ;;
+  system)
+    LIBEDIT_CONFIGURE_ARG=("--with-libedit=/usr")
+    LIBEDIT_LINKAGE_EXPECTED="/usr/lib/libedit"
+    ;;
+  disabled)
+    LIBEDIT_CONFIGURE_ARG=("--without-libedit")
+    ;;
+esac
 
 log "Compiler: $CC"
 log "CFLAGS: $CFLAGS"
@@ -411,7 +508,9 @@ log "Selected CPU flag: ${CPU_FLAG:-none}"
 log "Parallel jobs: $NCPU"
 log "Crypto prefix: $CRYPTO_PREFIX"
 log "zlib prefix: $ZLIB_PREFIX"
-log "libedit prefix: ${LIBEDIT_PREFIX:-not found}"
+log "zlib linkage expected: $ZLIB_LINKAGE_EXPECTED"
+log "libedit prefix: ${LIBEDIT_PREFIX:-not used}"
+log "libedit linkage expected: ${LIBEDIT_LINKAGE_EXPECTED:-not used}"
 if is_awslc_build; then
   warn "AWS-LC builds disable PKCS#11 in this HPN-SSH source tree; smart-card/token workflows need separate validation."
   warn "AWS-LC lacks EVP_CIPHER_meth_*; AES-CTR-MT hook is disabled and AWS-LC native AES-CTR is used."
@@ -768,9 +867,20 @@ fi
 log "Binary architecture: $(file "$HPNSSH_BIN")"
 
 require_linkage_contains "libcrypto" 'libcrypto' "${CRYPTO_PREFIX}/lib/libcrypto"
-require_linkage_contains "libz" 'libz([.][0-9])?.*dylib' "${ZLIB_PREFIX}/lib/libz"
+require_linkage_contains "libz" 'libz([.][0-9])?.*dylib' "$ZLIB_LINKAGE_EXPECTED"
 reject_linkage "libbsm" 'libbsm'
 require_linkage_contains "Kerberos" 'Kerberos[.]framework' "Kerberos.framework"
+HPNSFTP_BIN="${SRC_DIR}/hpnsftp"
+if [[ -x "$HPNSFTP_BIN" ]]; then
+  if [[ -n "$LIBEDIT_LINKAGE_EXPECTED" ]]; then
+    require_binary_linkage_contains "$HPNSFTP_BIN" "libedit" 'libedit([.][0-9])?.*dylib' "$LIBEDIT_LINKAGE_EXPECTED"
+  else
+    reject_binary_linkage "$HPNSFTP_BIN" "libedit" 'libedit([.][0-9])?.*dylib'
+  fi
+  if [[ "$LIBEDIT_MODE" == "system" ]]; then
+    reject_binary_linkage "$HPNSFTP_BIN" "Homebrew libedit" '/opt/homebrew/.*/libedit'
+  fi
+fi
 
 grep -q '^#define KRB5 1' "${SRC_DIR}/config.h" || die "Validation failed: KRB5 was not enabled in config.h"
 grep -q '^#define GSSAPI 1' "${SRC_DIR}/config.h" || die "Validation failed: GSSAPI was not enabled in config.h"

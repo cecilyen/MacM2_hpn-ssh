@@ -136,6 +136,7 @@ prune_known_logs() {
   for pattern in \
     'hpnssh-build-*.log' \
     'hpnssh-awslc-build-*.log' \
+    'hpnssh-awslc-system-zlib-build-*.log' \
     'hpnssh-awslc-zlibng-build-*.log'; do
     read_lines collect_sorted_files "${ROOT_DIR}/logs" "$pattern"
     prune_read_lines_newest_first "$KEEP_LATEST"
@@ -152,7 +153,7 @@ read_lines() {
 
 main() {
   local workdir
-  for workdir in build build-awslc build-awslc-zlibng; do
+  for workdir in build build-awslc build-awslc-system-zlib build-awslc-zlibng; do
     local abs_workdir="${ROOT_DIR}/${workdir}"
 
     if [[ "$CLEAN_ALL" -eq 1 ]]; then

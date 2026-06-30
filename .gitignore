@@ -4,6 +4,7 @@
 # Generated build trees
 /build/
 /build-awslc/
+/build-awslc-system-zlib/
 /build-awslc-zlibng/
 
 # Generated logs, profiles, and release output
@@ -12,6 +13,10 @@
 /release/
 /dist/
 /homebrew-tap/
+/benchmarks/results/
+/benchmarks/tmp/
+/benchmarks/crypto/build/
+/benchmarks/crypto/results/
 
 # Local editor and shell state
 *.swp

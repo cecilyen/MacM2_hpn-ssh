@@ -1,10 +1,24 @@
 # Optimization
 
-Main conclusion: keep the production build conservative: `-O3 -flto -g0` with
-an Apple `-mcpu` target for local builds, optional Profile-Guided Optimization
+Main conclusion: keep the publishable Apple Silicon build generic:
+`-O3 -arch arm64 -flto=thin -pipe` and
+`-arch arm64 -flto=thin -Wl,-dead_strip`, optional Profile-Guided Optimization
 (PGO), and no `-ffast-math` or forced `-fstrict-aliasing`.
 
-## Recommended Local M2 Max Profile
+## Recommended Publication Profile
+
+```sh
+CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
+CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
+LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
+```
+
+This is the default profile used by
+`scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh`. It avoids
+M2-specific `-mcpu` tuning so the binary remains a more general M1-and-newer
+Apple Silicon build.
+
+## Optional Local M2 Max Profile
 
 ```sh
 CFLAGS="-O3 -flto -g0 -mcpu=apple-m2"
@@ -12,9 +26,9 @@ CXXFLAGS="-O3 -flto -g0 -mcpu=apple-m2"
 LDFLAGS="-flto -Wl,-dead_strip"
 ```
 
-The shared builder already supplies the main optimization flags and detects an
-Apple CPU target, so only override these values when you are running a controlled
-benchmark.
+The shared base builder can still supply local full-LTO flags and detect an
+Apple CPU target. Use that path only when you are running a controlled local
+benchmark rather than preparing a general release artifact.
 
 ## General Apple Silicon Build
 
@@ -35,19 +49,19 @@ cross-module optimization benefits.
 Build an instrumented binary:
 
 ```sh
-PGO_RAW=/Users/yencc/Documents/MacHPNSSH/profiles/hpnssh-pgo-raw
+PGO_RAW="$PWD/profiles/hpnssh-pgo-raw"
 mkdir -p "$PGO_RAW"
 
 CFLAGS="-fprofile-generate=${PGO_RAW}" \
 CXXFLAGS="-fprofile-generate=${PGO_RAW}" \
 LDFLAGS="-fprofile-generate=${PGO_RAW}" \
-scripts/build-hpnssh-macos-arm64-awslc-zlibng.sh --tag hpn-18.9.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.9.0
 ```
 
 Train it with real workloads:
 
 ```sh
-PGO_BIN=/Users/yencc/Documents/MacHPNSSH/build-awslc-zlibng/runs/<run>/hpn-ssh
+PGO_BIN="$PWD/build-awslc-system-zlib/runs/<run>/hpn-ssh"
 
 LLVM_PROFILE_FILE="${PGO_RAW}/hpnssh-%p.profraw" \
   "${PGO_BIN}/hpnssh" -o Fallback=no your-host true
@@ -59,19 +73,19 @@ LLVM_PROFILE_FILE="${PGO_RAW}/hpnscp-%p.profraw" \
 Merge and rebuild:
 
 ```sh
-PROF=/Users/yencc/Documents/MacHPNSSH/profiles/hpnssh.profdata
+PROF="$PWD/profiles/hpnssh.profdata"
 
 xcrun llvm-profdata merge -output "$PROF" "$PGO_RAW"
 
 CFLAGS="-fprofile-use=${PROF}" \
 CXXFLAGS="-fprofile-use=${PROF}" \
 LDFLAGS="-fprofile-use=${PROF} -Wl,-dead_strip" \
-scripts/build-hpnssh-macos-arm64-awslc-zlibng.sh --tag hpn-18.9.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.9.0
 ```
 
 Limitations: PGO optimizes HPN-SSH/OpenSSH objects only. It does not optimize
-Homebrew AWS-LC or zlib-ng dynamic libraries unless those libraries are rebuilt
-with their own PGO profiles.
+Homebrew AWS-LC or macOS system zlib unless those libraries are rebuilt with
+their own PGO profiles.
 
 ## Flags To Avoid
 

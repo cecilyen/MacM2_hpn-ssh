@@ -20,17 +20,17 @@ binary can require signing the final file again.
 Verbose client output may show:
 
 ```text
-load_hostkeys: fopen /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts: No such file or directory
-load_hostkeys: fopen /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts2: No such file or directory
+load_hostkeys: fopen /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts: No such file or directory
+load_hostkeys: fopen /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts2: No such file or directory
 ```
 
 Those are optional global host-key stores. User host keys still live in
 `~/.ssh/known_hosts`. To silence the message:
 
 ```sh
-sudo mkdir -p /opt/hpnssh-awslc/etc/hpnssh
-sudo touch /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts2
-sudo chmod 0644 /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts2
+sudo mkdir -p /opt/hpnssh-awslc-system-zlib/etc/hpnssh
+sudo touch /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts2
+sudo chmod 0644 /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts2
 ```
 
 ## Check Linked Libraries
@@ -39,9 +39,11 @@ sudo chmod 0644 /opt/hpnssh-awslc/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc/e
 otool -L /path/to/hpnssh
 ```
 
-Expected AWS-LC + zlib-ng linkage includes Homebrew `aws-lc` for `libcrypto`,
-Homebrew `zlib-ng-compat` for `libz`, and Apple's Kerberos framework. It should
-not include `libbsm`.
+Expected AWS-LC + macOS zlib linkage includes Homebrew `aws-lc` for
+`libcrypto`, `/usr/lib/libz.1.dylib` for compression, and Apple's Kerberos
+framework. `hpnsftp` should link `/usr/lib/libedit.3.dylib`, not Homebrew
+`libedit`. The binaries should not include `libbsm`, Homebrew
+`zlib-ng-compat`, or Homebrew `openssl@3`.
 
 ## Use With sshfs
 
@@ -49,14 +51,14 @@ For macos-fuse-t `sshfs`, pass the HPN-SSH client path through `ssh_command`:
 
 ```sh
 sshfs user@host:/remote /mount/point \
-  -o ssh_command=/opt/hpnssh-awslc-zlibng/bin/hpnssh
+  -o ssh_command=/opt/hpnssh-awslc-system-zlib/bin/hpnssh
 ```
 
 When you need to disable HPN's fallback behavior explicitly:
 
 ```sh
 sshfs user@host:/remote /mount/point \
-  -o ssh_command='/opt/hpnssh-awslc-zlibng/bin/hpnssh -o Fallback=no'
+  -o ssh_command='/opt/hpnssh-awslc-system-zlib/bin/hpnssh -o Fallback=no'
 ```
 
 ## Fallback Port Loop

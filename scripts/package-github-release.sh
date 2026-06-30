@@ -7,6 +7,7 @@ RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.9.0-macos26-arm64}"
 RELEASE_DIR="${RELEASE_DIR:-${ROOT_DIR}/release/${RELEASE_TAG}}"
 FORCE=0
 REQUIRE_ALL=0
+ALL_VARIANTS=0
 PACKAGED=0
 SKIPPED=0
 
@@ -21,6 +22,7 @@ Options:
   --release-tag TAG   Release tag/directory name. Default: hpnssh-18.9.0-macos26-arm64.
   --release-dir PATH  Output directory. Default: ./release/<tag>.
   --force             Replace an existing release directory.
+  --all-variants      Package every known local variant. Default: preferred AWS-LC + macOS zlib only.
   --require-all       Fail if any known variant cannot be packaged.
   -h, --help          Show this help.
 USAGE
@@ -54,6 +56,10 @@ while (($#)); do
       ;;
     --force)
       FORCE=1
+      shift
+      ;;
+    --all-variants)
+      ALL_VARIANTS=1
       shift
       ;;
     --require-all)
@@ -201,6 +207,22 @@ package_variant() {
     return 0
   fi
 
+  if [[ "$name" == "hpnssh-awslc-system-zlib" ]]; then
+    local hpnsftp_bin="${src_dir}/hpnsftp"
+    [[ -x "$hpnsftp_bin" ]] || {
+      skip_variant "$name" "missing executable hpnsftp in $(relative_path "$src_dir")"
+      return 0
+    }
+    if ! otool -L "$hpnsftp_bin" | grep -q '/usr/lib/libedit[.][0-9].*dylib'; then
+      skip_variant "$name" "hpnsftp does not link macOS system libedit"
+      return 0
+    fi
+    if otool -L "$hpnsftp_bin" | grep -q '/opt/homebrew/.*/libedit'; then
+      skip_variant "$name" "hpnsftp still links Homebrew libedit"
+      return 0
+    fi
+  fi
+
   if ! version="$("$hpnssh_bin" -V 2>&1)"; then
     skip_variant "$name" "hpnssh -V failed: ${version}"
     return 0
@@ -223,6 +245,9 @@ package_variant() {
 
   printf '%s\n' "$version" >"${stage}/VERSION.txt"
   otool -L "${stage}/bin/hpnssh" >"${stage}/otool-hpnssh.txt"
+  if [[ -x "${stage}/bin/hpnsftp" ]]; then
+    otool -L "${stage}/bin/hpnsftp" >"${stage}/otool-hpnsftp.txt"
+  fi
   codesign -dv "${stage}/bin/hpnssh" >"${stage}/codesign-hpnssh.txt" 2>&1 || true
   write_variant_readme "$stage" "$name" "$label" "$run_rel" "$version"
 
@@ -238,9 +263,14 @@ package_variant() {
   printf 'packaged: %s\n' "$(basename "$archive")"
 }
 
-package_variant hpnssh-openssl3 "HPN-SSH with OpenSSL 3" build
-package_variant hpnssh-awslc "HPN-SSH with AWS-LC" build-awslc
-package_variant hpnssh-awslc-zlibng "HPN-SSH with AWS-LC and zlib-ng" build-awslc-zlibng
+if [[ "$ALL_VARIANTS" -eq 1 ]]; then
+  package_variant hpnssh-openssl3 "HPN-SSH with OpenSSL 3" build
+  package_variant hpnssh-awslc "HPN-SSH with AWS-LC" build-awslc
+  package_variant hpnssh-awslc-system-zlib "HPN-SSH with AWS-LC and macOS zlib" build-awslc-system-zlib
+  package_variant hpnssh-awslc-zlibng "HPN-SSH with AWS-LC and zlib-ng" build-awslc-zlibng
+else
+  package_variant hpnssh-awslc-system-zlib "HPN-SSH with AWS-LC and macOS zlib" build-awslc-system-zlib
+fi
 
 if [[ "$PACKAGED" -eq 0 ]]; then
   die "No variants were packaged. See $SKIPPED_FILE"
@@ -248,6 +278,10 @@ fi
 
 if [[ "$REQUIRE_ALL" -eq 1 && "$SKIPPED" -gt 0 ]]; then
   die "Some variants were skipped. See $SKIPPED_FILE"
+fi
+
+if [[ "$SKIPPED" -eq 0 ]]; then
+  printf 'No variants skipped.\n' >"$SKIPPED_FILE"
 fi
 
 (
@@ -265,13 +299,26 @@ Packaged variants: ${PACKAGED}
 Skipped variants: ${SKIPPED}
 Generated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-Upload these files to the GitHub release:
+## Runtime Requirement
 
-\`\`\`text
-$(cd "$RELEASE_DIR" && ls -1 *.tar.gz SHA256SUMS MANIFEST.txt SKIPPED.txt)
+\`\`\`sh
+brew install aws-lc
 \`\`\`
 
-Use \`SHA256SUMS\` to verify downloaded archives.
+The preferred archive uses Homebrew AWS-LC for \`libcrypto\`, macOS system
+\`zlib\`, and macOS system \`libedit\` for \`hpnsftp\`.
+
+## Assets
+
+\`\`\`text
+$(cd "$RELEASE_DIR" && ls -1 *.tar.gz SHA256SUMS MANIFEST.txt SKIPPED.txt RELEASE_NOTES.md)
+\`\`\`
+
+Use \`SHA256SUMS\` to verify downloaded archives:
+
+\`\`\`sh
+shasum -a 256 -c SHA256SUMS
+\`\`\`
 EOF
 
 rm -rf -- "${RELEASE_DIR}/staging"
