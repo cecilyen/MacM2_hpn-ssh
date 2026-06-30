@@ -1,8 +1,8 @@
 # System Requirements
 
-Main conclusion: the published binary archive targets macOS 26 on Apple
-Silicon `arm64` systems. It is not an Intel macOS build, and it is not intended
-to replace Apple's system OpenSSH.
+The published binary archive targets macOS 26 on Apple Silicon `arm64` systems.
+It is not an Intel macOS build, and it is not intended to replace Apple's system
+OpenSSH.
 
 ## Supported Runtime Target
 

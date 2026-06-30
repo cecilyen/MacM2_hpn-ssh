@@ -136,8 +136,7 @@ write_variant_readme() {
   cat >"${stage}/README.md" <<EOF
 # ${label}
 
-Main conclusion: this archive contains ad-hoc signed HPN-SSH 18.9 arm64
-binaries for macOS.
+This archive contains ad-hoc signed HPN-SSH 18.9 arm64 binaries for macOS.
 
 Variant: ${name}
 Source run: ${run_rel}
@@ -292,8 +291,7 @@ fi
 cat >"$NOTES" <<EOF
 # ${RELEASE_TAG}
 
-Main conclusion: this release contains validated HPN-SSH 18.9 macOS arm64
-binary archives generated from this workspace.
+This release contains validated HPN-SSH 18.9 macOS arm64 binary archives.
 
 Packaged variants: ${PACKAGED}
 Skipped variants: ${SKIPPED}

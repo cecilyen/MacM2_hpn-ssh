@@ -1,8 +1,8 @@
 # Building
 
-Main conclusion: use the wrapper matching the library stack you want, and let
-the shared builder resolve Homebrew paths, macOS Software Development Kit (SDK)
-paths, compiler flags, and validation.
+Use the wrapper matching the library stack you want. The shared builder resolves
+Homebrew paths, macOS Software Development Kit (SDK) paths, compiler flags, and
+validation.
 
 ## Requirements
 
@@ -16,6 +16,9 @@ paths, compiler flags, and validation.
     using macOS SDK/system `zlib` and `libedit`.
   - AWS-LC + zlib-ng: `aws-lc`, `zlib-ng-compat`, `autoconf`, `automake`,
     `libtool`, `libedit`.
+
+The AWS-LC + macOS zlib wrapper is the published build profile. The other
+wrappers are retained for comparison and local testing.
 
 ## Commands
 

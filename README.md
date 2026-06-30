@@ -1,33 +1,29 @@
 # MacM2 HPN-SSH
 
-Main conclusion: this repository builds and packages isolated HPN-SSH 18.9
-clients and daemons for Apple Silicon macOS, tuned for an M2 Max system, without
-replacing Apple's system OpenSSH binaries.
+This repository builds and packages isolated HPN-SSH 18.9 clients and daemons
+for Apple Silicon macOS without replacing Apple's system OpenSSH binaries.
 
 The build automation downloads HPN-SSH from the official
 [rapier1/hpn-ssh](https://github.com/rapier1/hpn-ssh) repository, configures it
 for macOS, compiles `arm64` binaries, and keeps the upstream `hpn` command names
 such as `hpnssh`, `hpnsshd`, `hpnscp`, and `hpnsftp`.
 
-## Current Validated Build
+## Current Published Build
 
-The current validated local build is:
+The current published build is:
 
 - HPN-SSH: `18.9.0`
 - OpenSSH base: `10.3p1`
 - Crypto: Homebrew AWS-LC `5.1.0`
 - Compression: macOS system `zlib`
 - Architecture: `arm64`
-- macOS target used for this project: macOS 26 on Apple Silicon
+- macOS target: macOS 26 on Apple Silicon
 - Default client port: `22`
 - Build flags:
   `CFLAGS="-O3 -arch arm64 -flto=thin -pipe"`
   `CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"`
   `LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"`
-- Install prefix used by the AWS-LC + macOS zlib build:
-  `/opt/hpnssh-awslc-system-zlib`
-
-Homebrew formulae are intentionally not published in this repository yet.
+- Install prefix: `/opt/hpnssh-awslc-system-zlib`
 
 ## Install From GitHub Release
 
@@ -42,12 +38,12 @@ Install the minimal Homebrew runtime libraries first:
 brew install aws-lc
 ```
 
-Those are the only Homebrew packages required to run all binaries in the
+This is the only Homebrew package required to run all binaries in the
 AWS-LC + macOS zlib archive. The packaged tools also link macOS-provided system
 libraries and frameworks such as Kerberos, PAM, libresolv, libSystem, libz,
 libedit, libsandbox, and system ncurses.
 
-Runtime linkage checked from the validated build:
+Runtime linkage checked from the published build:
 
 | Binary set | Homebrew runtime libraries |
 | --- | --- |
@@ -55,7 +51,8 @@ Runtime linkage checked from the validated build:
 | `hpnsftp` | none from Homebrew |
 | `hpnsftp-server` | none from Homebrew |
 
-Download the release archive from this repository's GitHub Releases page, then:
+Download the preferred release archive from this repository's GitHub Releases
+page, then:
 
 ```sh
 mkdir -p /tmp/machpnssh
@@ -144,9 +141,10 @@ scripts/build-hpnssh-macos-arm64-awslc.sh --tag hpn-18.9.0
 scripts/build-hpnssh-macos-arm64-awslc-zlibng.sh --tag hpn-18.9.0
 ```
 
-The AWS-LC + macOS zlib variant is the preferred publishable build because it
-requires fewer Homebrew runtime libraries than the zlib-ng variant while still
-using AWS-LC for `libcrypto`.
+Those variants are retained for comparison and local experiments. The AWS-LC +
+macOS zlib variant is the preferred published build because it requires fewer
+Homebrew runtime libraries than the zlib-ng variant while still using AWS-LC
+for `libcrypto`.
 
 ## Build Behavior
 
@@ -169,7 +167,7 @@ The build scripts:
 
 ## Package A GitHub Release
 
-Generate release-ready archives from the latest validated local build outputs:
+Generate release-ready archives from the latest local build outputs:
 
 ```sh
 scripts/package-github-release.sh
@@ -182,7 +180,7 @@ release/hpnssh-18.9.0-macos26-arm64/
 ```
 
 Upload the generated `*.tar.gz`, `SHA256SUMS`, `MANIFEST.txt`, `SKIPPED.txt`,
-and `RELEASE_NOTES.md` files to a GitHub Release.
+and `RELEASE_NOTES.md` files as GitHub Release assets.
 
 ## Repository Layout
 
@@ -190,7 +188,7 @@ and `RELEASE_NOTES.md` files to a GitHub Release.
 | --- | --- |
 | `scripts/` | Build, cleanup, and release packaging scripts |
 | `docs/` | Detailed system requirements, build, optimization, troubleshooting, packaging, and layout notes |
-| `projects/` | Variant-specific notes |
+| `projects/` | Variant-specific build profiles |
 | `build*/`, `logs/`, `profiles/`, `release/` | Generated local artifacts ignored by Git |
 
 ## Limitations

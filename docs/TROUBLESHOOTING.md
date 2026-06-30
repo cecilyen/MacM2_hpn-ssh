@@ -1,7 +1,7 @@
 # Troubleshooting
 
-Main conclusion: most local failures come from dynamic library paths, macOS code
-signing after copying binaries, or missing optional global configuration files.
+Most local failures come from dynamic library paths, macOS code signing after
+copying binaries, or missing optional global configuration files.
 
 ## Copied Binary Is Killed By macOS
 

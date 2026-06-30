@@ -1,8 +1,8 @@
 # HPN-SSH AWS-LC + macOS zlib Fork
 
-Main conclusion: this variant builds HPN-SSH 18.9 against Homebrew AWS-LC
-5.1.x while using macOS system `zlib` and `libedit`, reducing Homebrew runtime
-dependencies compared with the zlib-ng build.
+This is the published build profile. It builds HPN-SSH 18.9 against Homebrew
+AWS-LC 5.1.x while using macOS system `zlib` and `libedit`, reducing Homebrew
+runtime dependencies compared with the zlib-ng build.
 
 ## Build
 

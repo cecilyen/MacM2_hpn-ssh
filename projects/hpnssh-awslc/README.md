@@ -1,8 +1,8 @@
 # HPN-SSH AWS-LC Fork
 
-Main conclusion: this local fork builds HPN-SSH 18.9 against Homebrew AWS-LC
-instead of Homebrew OpenSSL 3, while keeping a separate build directory and
-installation prefix.
+This legacy variant builds HPN-SSH 18.9 against Homebrew AWS-LC with Homebrew
+zlib. It keeps a separate build directory and installation prefix from the
+published AWS-LC + macOS zlib build.
 
 ## Build
 
@@ -18,7 +18,7 @@ Defaults:
 - Build directory: `build-awslc`
 - Install prefix: `/opt/hpnssh-awslc`
 - Architecture: `arm64`
-- Optimization: `-O3 -flto -g0 -mcpu=apple-m2` on this Apple M2 Max host
+- Optimization: local full-LTO profile from the shared builder
 - Default HPN-SSH port: `22`
 
 To install after a successful build:

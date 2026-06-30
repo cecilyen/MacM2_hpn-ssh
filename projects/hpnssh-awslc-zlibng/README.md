@@ -1,8 +1,8 @@
 # HPN-SSH AWS-LC + zlib-ng Fork
 
-Main conclusion: this local fork builds HPN-SSH 18.9 against Homebrew AWS-LC
-and Homebrew `zlib-ng-compat`, while keeping a separate build directory and
-installation prefix from the OpenSSL and AWS-LC/zlib baselines.
+This legacy variant builds HPN-SSH 18.9 against Homebrew AWS-LC and Homebrew
+`zlib-ng-compat`. It remains useful for comparison, but the published build now
+uses macOS system `zlib` and `libedit` to reduce Homebrew runtime dependencies.
 
 ## Build
 
@@ -20,7 +20,7 @@ Defaults:
 - Build directory: `build-awslc-zlibng`
 - Install prefix: `/opt/hpnssh-awslc-zlibng`
 - Architecture: `arm64`
-- Optimization: `-O3 -flto -g0 -mcpu=apple-m2` on this Apple M2 Max host
+- Optimization: local full-LTO profile from the shared builder
 - Default HPN-SSH port: `22`
 
 To install after a successful build:

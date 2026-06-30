@@ -1,9 +1,9 @@
 # Optimization
 
-Main conclusion: keep the publishable Apple Silicon build generic:
+The published Apple Silicon build uses generic arm64 ThinLTO flags:
 `-O3 -arch arm64 -flto=thin -pipe` and
-`-arch arm64 -flto=thin -Wl,-dead_strip`, optional Profile-Guided Optimization
-(PGO), and no `-ffast-math` or forced `-fstrict-aliasing`.
+`-arch arm64 -flto=thin -Wl,-dead_strip`. Profile-Guided Optimization (PGO) is
+optional. Do not use `-ffast-math` or force `-fstrict-aliasing` for this code.
 
 ## Recommended Publication Profile
 

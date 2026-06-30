@@ -1,17 +1,16 @@
 # Project Layout
 
-Main conclusion: source and packaging files are small and stable; build trees,
-logs, profiles, and release output are generated artifacts and should stay out
-of Git.
+Source and packaging files are small and stable. Build trees, logs, profiles,
+and release output are generated artifacts and should stay out of Git.
 
 ## Source Files
 
 ```text
 README.md
 docs/
-docs/SYSTEM_REQUIREMENTS.md
 scripts/
 projects/
+benchmarks/crypto/
 ```
 
 ## Generated Files

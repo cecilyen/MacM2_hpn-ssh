@@ -1,8 +1,7 @@
 # Packaging
 
-Main conclusion: publish source from the root repository and publish validated
-binary tarballs from `release/` as GitHub Release assets. Homebrew formulae are
-intentionally not included yet.
+Publish source from the root repository and publish validated binary tarballs
+from `release/` as GitHub Release assets.
 
 The preferred publishable binary variant is `hpnssh-awslc-system-zlib`, which
 uses Homebrew AWS-LC for `libcrypto` and macOS `/usr/lib/libz.1.dylib` for
@@ -52,6 +51,8 @@ gh release upload hpnssh-18.9.0-macos26-arm64 \
   release/hpnssh-18.9.0-macos26-arm64/SKIPPED.txt \
   release/hpnssh-18.9.0-macos26-arm64/RELEASE_NOTES.md
 ```
+
+Add `--clobber` when replacing an existing asset with a regenerated file.
 
 ## References
 
