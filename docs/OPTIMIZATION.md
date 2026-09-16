@@ -1,11 +1,11 @@
 # Optimization
 
-The published Apple Silicon build uses generic arm64 ThinLTO flags:
-`-O3 -arch arm64 -flto=thin -pipe` and
-`-arch arm64 -flto=thin -Wl,-dead_strip`. Profile-Guided Optimization (PGO) is
-optional. Do not use `-ffast-math` or force `-fstrict-aliasing` for this code.
+The publication profile favors a broadly compatible Apple Silicon binary over
+M2-specific tuning. Network, storage, latency, and the remote SSH endpoint
+usually dominate end-to-end performance after the basic crypto path is fast
+enough.
 
-## Recommended Publication Profile
+## Publication Profile
 
 ```sh
 CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
@@ -13,38 +13,37 @@ CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
 LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
 ```
 
-This is the default profile used by
-`scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh`. It avoids
-M2-specific `-mcpu` tuning so the binary remains a more general M1-and-newer
-Apple Silicon build.
+This profile is the default in
+`scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh`.
 
-## Optional Local M2 Max Profile
+- `-O3` enables aggressive scalar and loop optimization.
+- `-arch arm64` produces Apple Silicon code without selecting one M-series
+  microarchitecture.
+- ThinLTO provides cross-module optimization with lower build cost than full
+  LTO.
+- `-pipe` changes compiler temporary-file handling; it does not make the
+  resulting SSH binary faster.
+- `-Wl,-dead_strip` removes unreachable Mach-O code and data.
 
-```sh
-CFLAGS="-O3 -flto -g0 -mcpu=apple-m2"
-CXXFLAGS="-O3 -flto -g0 -mcpu=apple-m2"
-LDFLAGS="-flto -Wl,-dead_strip"
-```
+`-g0` is optional. Release binaries are stripped with `strip -S`, then ad-hoc
+signed, so adding `-g0` is not required to remove final debug sections.
 
-The shared base builder can still supply local full-LTO flags and detect an
-Apple CPU target. Use that path only when you are running a controlled local
-benchmark rather than preparing a general release artifact.
+## Local CPU Tuning
 
-## General Apple Silicon Build
-
-For a portable Apple Silicon build intended for M1 and later systems:
+For a binary that will run only on an M2-class machine:
 
 ```sh
-CFLAGS="-O3 -flto=thin -g0"
-CXXFLAGS="-O3 -flto=thin -g0"
-LDFLAGS="-flto=thin -Wl,-dead_strip"
+HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -mcpu=apple-m2 -flto=thin -pipe" \
+HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip" \
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
-Thin Link-Time Optimization (ThinLTO) is usually a better packaging default
-than full LTO because it scales better during build while preserving many
-cross-module optimization benefits.
+Do not publish this as a general M1-and-newer bottle. Measure it against the
+generic build with representative transfers before keeping it.
 
 ## Profile-Guided Optimization
+
+Use the same LLVM toolchain for compilation and profile merging.
 
 Build an instrumented binary:
 
@@ -52,13 +51,13 @@ Build an instrumented binary:
 PGO_RAW="$PWD/profiles/hpnssh-pgo-raw"
 mkdir -p "$PGO_RAW"
 
-CFLAGS="-fprofile-generate=${PGO_RAW}" \
-CXXFLAGS="-fprofile-generate=${PGO_RAW}" \
-LDFLAGS="-fprofile-generate=${PGO_RAW}" \
+HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -flto=thin -pipe -fprofile-generate=${PGO_RAW}" \
+HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip -fprofile-generate=${PGO_RAW}" \
 scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
-Train it with real workloads:
+Train the generated `hpnssh` and `hpnscp` with representative hosts, file
+sizes, directions, ciphers, and KEX algorithms:
 
 ```sh
 PGO_BIN="$PWD/build-awslc-system-zlib/runs/<run>/hpn-ssh"
@@ -74,41 +73,39 @@ Merge and rebuild:
 
 ```sh
 PROF="$PWD/profiles/hpnssh.profdata"
+/opt/homebrew/opt/llvm/bin/llvm-profdata merge -output "$PROF" \
+  "${PGO_RAW}"/*.profraw
 
-xcrun llvm-profdata merge -output "$PROF" "$PGO_RAW"
-
-CFLAGS="-fprofile-use=${PROF}" \
-CXXFLAGS="-fprofile-use=${PROF}" \
-LDFLAGS="-fprofile-use=${PROF} -Wl,-dead_strip" \
+HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -flto=thin -pipe -fprofile-use=${PROF}" \
+HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip -fprofile-use=${PROF}" \
 scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
-Limitations: PGO optimizes HPN-SSH/OpenSSH objects only. It does not optimize
-Homebrew AWS-LC or macOS system zlib unless those libraries are rebuilt with
-their own PGO profiles.
+PGO affects HPN-SSH/OpenSSH objects, not the prebuilt AWS-LC or macOS system
+libraries. A narrow training set can regress untrained workloads, so compare
+latency, throughput, CPU, and memory before publication.
 
 ## Flags To Avoid
 
-- Do not use `-ffast-math`. HPN-SSH is not a floating-point workload, and Clang
-  documents that this flag enables assumptions such as no NaNs, no infinities,
-  reassociation, reciprocal transforms, and no signed-zero distinction.
+- Do not use `-ffast-math`. SSH is not a floating-point workload, so the flag
+  provides no useful crypto or transport optimization and weakens floating
+  point semantics globally.
 - Do not force `-fstrict-aliasing`. OpenSSH configure intentionally adds
-  `-fno-strict-aliasing`, and strict-aliasing violations are undefined behavior.
+  `-fno-strict-aliasing`; overriding it can expose undefined behavior.
+- Do not assume full LTO is faster than ThinLTO at runtime. Benchmark both if
+  build-time and memory costs are acceptable.
 
-## Strip And Dead Strip
+## Strip Order
 
-`-Wl,-dead_strip` is a linker reachability optimization for Mach-O functions and
-data. It does not replace `strip -S`, which removes debug symbol entries. Keep
-the release order as:
+`-Wl,-dead_strip` and `strip -S` perform different jobs. Keep this order:
 
 1. Link with `-Wl,-dead_strip`.
-2. Strip debug symbols.
-3. Apply the ad-hoc code signature.
+2. Strip debug symbols with `strip -S`.
+3. Apply the final ad-hoc code signature.
 
 ## References
 
-- Clang optimization levels: <https://clang.llvm.org/docs/CommandGuide/clang.html#cmdoption-o0>
-- Clang Profile-Guided Optimization: <https://clang.llvm.org/docs/UsersManual.html#profile-guided-optimization>
-- LLVM `llvm-profdata`: <https://llvm.org/docs/CommandGuide/llvm-profdata.html>
-- Clang `-ffast-math`: <https://clang.llvm.org/docs/UsersManual.html#cmdoption-ffast-math>
-- Clang strict aliasing: <https://clang.llvm.org/docs/UsersManual.html#strict-aliasing>
+- [Clang command guide](https://clang.llvm.org/docs/CommandGuide/clang.html)
+- [Clang profile-guided optimization](https://clang.llvm.org/docs/UsersManual.html#profile-guided-optimization)
+- [LLVM llvm-profdata](https://llvm.org/docs/CommandGuide/llvm-profdata.html)
+- [Clang strict aliasing](https://clang.llvm.org/docs/UsersManual.html#strict-aliasing)

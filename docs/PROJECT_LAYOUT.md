@@ -1,69 +1,60 @@
-# Project Layout
+# Project Layout And Cleanup
 
-Source and publication files stay in Git. Build trees, logs, profiles, and
-release output are generated and ignored.
+Only source, scripts, and documentation belong in Git. Build trees, logs,
+profiles, benchmark output, bottles, and direct archives are generated and
+ignored.
 
-## Root Repository
-
-```text
-README.md
-docs/
-scripts/
-projects/
-benchmarks/crypto/
-```
-
-Generated root paths:
+## Tracked Files
 
 ```text
-build/
-build-awslc/
-build-awslc-system-zlib/
-build-awslc-zlibng/
-logs/
-profiles/
-release/
-dist/
+README.md                 Project entry point
+docs/                     Build, runtime, optimization, and release guidance
+scripts/                  Build, benchmark, package, and cleanup tools
+projects/README.md        Supported and legacy build-profile matrix
+benchmarks/crypto/        Reproducible libcrypto microbenchmark source
 ```
 
-## Homebrew Tap
-
-`homebrew-tap/` is an ignored local checkout of the separate public
-[cecilyen/homebrew-hpnssh](https://github.com/cecilyen/homebrew-hpnssh)
-repository. It contains:
+## Generated Paths
 
 ```text
-Formula/hpnssh-awslc.rb
-README.md
-RELEASE.md
-scripts/build-bottle.sh
-scripts/upload-release.sh
+build*/                   Source worktrees and compiled binaries
+logs/                     Timestamped build logs
+profiles/                 PGO data
+release/                  Direct-install archives
+dist/                     Packaging output
+benchmarks/results/       SSH benchmark results
+benchmarks/crypto/build/  Crypto benchmark executable
+benchmarks/crypto/results/ Crypto benchmark CSV output
 ```
 
-The tap repository stores the recipe and release tooling. Bottle tarballs and
-JSON are generated under its ignored `dist/` directory and uploaded as
-GitHub Release assets.
+`homebrew-tap/` is an ignored checkout of the separate public
+[Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh). Its own Git
+history, formula, scripts, and `dist/` output do not belong to this
+repository.
 
 ## Cleanup
 
-Dry run:
+Preview removal while keeping the newest two runs per build profile:
 
 ```sh
 scripts/clean-generated-artifacts.sh
 ```
 
-Keep the newest two runs per variant:
+Keep only the newest run and matching number of logs:
 
 ```sh
-scripts/clean-generated-artifacts.sh --apply --keep-latest 2
+scripts/clean-generated-artifacts.sh --apply --keep-latest 1 --logs
 ```
 
-Remove all known generated build, log, profile, and root release directories:
+Remove all known generated build trees, logs, profiles, and root release
+directories:
 
 ```sh
 scripts/clean-generated-artifacts.sh --apply --all
 ```
 
-The cleanup helper operates only on known paths inside this workspace. It does
-not touch `/opt/hpnssh*`, `/opt/homebrew`, or the separate tap's published
-GitHub assets.
+`--all` also removes the newest validated local build. Review the default dry
+run before using it.
+
+The cleanup helper accepts only known workspace paths. It does not touch
+`/opt/hpnssh*`, `/opt/homebrew`, user SSH files, or published GitHub assets.

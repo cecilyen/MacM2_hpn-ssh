@@ -1,46 +1,105 @@
 # Building
 
-Use the wrapper matching the library stack you want. The shared builder resolves
-Homebrew paths, the macOS SDK, compiler flags, source patches, and validation.
+The supported source profile builds HPN-SSH with Homebrew AWS-LC and macOS
+system zlib, libedit, PAM, and Kerberos. The build remains isolated from both
+Apple OpenSSH and Homebrew OpenSSH.
 
 ## Requirements
 
-- macOS 26 on Apple Silicon `arm64`.
-- Command line developer tools or Xcode available through `xcrun`.
-- Homebrew under `/opt/homebrew`.
+- macOS 26 on Apple Silicon `arm64`
+- Xcode or Command Line Tools available through `xcrun`
+- A writable Homebrew installation under the standard `/opt/homebrew` prefix
+- Git and network access to the official HPN-SSH repository
 
-Preferred AWS-LC plus macOS zlib/libedit build:
+Install the build dependencies:
 
 ```sh
 brew install autoconf automake libtool llvm pkgconf aws-lc
 ```
 
-Other variants may also need `openssl@3`, `zlib`, `libedit`, or
-`zlib-ng-compat`.
+The preferred wrapper uses Homebrew LLVM for the compiler, archiver, and
+indexer. Using matching `llvm-ar` and `llvm-ranlib` is required for ThinLTO
+archives.
 
-## Commands
+## Build The Published Profile
 
-```sh
-scripts/build-hpnssh-macos-arm64.sh
-scripts/build-hpnssh-macos-arm64-awslc.sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh
-scripts/build-hpnssh-macos-arm64-awslc-zlibng.sh
-```
-
-Build the current fixed upstream tag:
+Use the exact release tag for a reproducible source selection:
 
 ```sh
 scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
-The build remains under `build-awslc-system-zlib/runs/` unless `--install`
-is supplied. Direct installation uses the isolated
-`/opt/hpnssh-awslc-system-zlib` prefix:
+Omit `--tag` to resolve the highest tag in the configured `18.11` series:
 
 ```sh
-sudo scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
-  --tag hpn-18.11.0 --install
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh
 ```
+
+Each run receives a new directory under:
+
+```text
+build-awslc-system-zlib/runs/hpn-<version>-<timestamp>/hpn-ssh/
+```
+
+The log is written under `logs/`. Building does not modify `/opt` and does not
+need administrator privileges.
+
+## Install A Direct Build
+
+Do not run the build wrapper itself with `sudo`; it invokes Homebrew and should
+create its source tree as the current user. Build first, then elevate only the
+install target for the configured `/opt/hpnssh-awslc-system-zlib` prefix:
+
+```sh
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+sudo make -C build-awslc-system-zlib/runs/<run>/hpn-ssh install-nokeys
+```
+
+`install-nokeys` deliberately omits server host private keys. The wrapper's
+`--install` option is appropriate only when `HPNSSH_PREFIX` names a location
+that the current user may write; upstream `make install` can create host keys.
+
+Direct installation is separate from the Homebrew formula. Review
+administrative and organization policy before writing to `/opt` or deploying
+`hpnsshd`. For most users, the published Homebrew bottle is simpler.
+
+## Tests And Validation
+
+Run the upstream test target explicitly:
+
+```sh
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
+  --tag hpn-18.11.0 --run-tests
+```
+
+The full regression suite can stop in the recursive SCP test on macOS when
+`/usr/bin/diff -r` encounters the suite's absolute symlink loop. This is a
+test-harness interaction, not evidence that a failed transfer should be
+ignored. The release build was separately validated with the unit/KEX tests,
+functional key scanning, formula tests, code-signature checks, and a relocated
+bottle pour.
+
+Every normal build validates:
+
+- HPN-SSH version suffix and AWS-LC identity
+- Mach-O `arm64` architecture
+- AWS-LC, system zlib, system libedit, and Kerberos linkage
+- PAM and Kerberos/GSSAPI configuration
+- Absence of `libbsm` and Homebrew libedit linkage
+- Default port `22`
+- Removal of `__DWARF` sections
+- Application of ad-hoc signatures after stripping
+
+## Release Flags
+
+```sh
+CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
+CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
+LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
+```
+
+The wrapper also reads the SDK path from `xcrun`, runs `autoreconf -fi`, and
+uses `sysctl -n hw.ncpu` for parallel `make`.
 
 ## Environment Overrides
 
@@ -49,54 +108,26 @@ sudo scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
 | `HPNSSH_PREFIX` | Isolated direct-install prefix |
 | `HPNSSH_WORKDIR` | Build workspace |
 | `HPNSSH_TAG` | Explicit upstream tag |
-| `HPNSSH_VERSION_SERIES` | Latest tag series; default `18.11` |
+| `HPNSSH_VERSION_SERIES` | Tag series used for latest-tag resolution |
 | `HPNSSH_CRYPTO_PREFIX` | Explicit crypto-provider prefix |
 | `ZLIB_PREFIX` | Explicit zlib-compatible provider prefix |
 | `HPNSSH_ZLIB_MODE` | `homebrew` or `system` |
 | `HPNSSH_LIBEDIT_MODE` | `homebrew`, `system`, or `disabled` |
-| `HPNSSH_CPU_TARGET` | Explicit Apple `-mcpu` target |
-| `HPNSSH_BASE_OPT_FLAGS` | Override C/C++ optimization flags |
-| `HPNSSH_BASE_LDFLAGS` | Override linker optimization flags |
-| `CC`, `CXX`, `AR`, `RANLIB` | Override the compiler and archive tools |
+| `HPNSSH_CPU_TARGET` | Shared-builder `-mcpu` target when base flags are not overridden |
+| `HPNSSH_BASE_OPT_FLAGS` | C and C++ optimization flags |
+| `HPNSSH_BASE_LDFLAGS` | Linker optimization flags |
+| `CC`, `CXX`, `AR`, `RANLIB` | Compiler and archive tools |
 
-## Shared Builder Behavior
+See [Build profiles](../projects/README.md) before selecting a legacy
+comparison wrapper.
 
-- Resolves the latest official `hpn-18.11.x` tag unless a tag is supplied.
-- Clones a fresh source tree into the selected `build*/runs/` directory.
-- Runs `autoreconf -fi`.
-- Uses the SDK reported by `xcrun --show-sdk-path`.
-- Configures PAM and Kerberos/GSSAPI through Apple's Kerberos framework.
-- Supports Homebrew or macOS SDK/system zlib and libedit.
-- Uses `sysctl -n hw.ncpu` for parallel `make`.
-- Forces `arm64`; the preferred wrapper uses:
+## Source Provenance
 
-```sh
-CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
-CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
-LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
+The published 18.11.0 build used upstream commit:
+
+```text
+1bd56196268fe2e23ed7c9b344b76f38d77a2fd3
 ```
 
-- Uses LLVM `llvm-ar` and `llvm-ranlib` with Homebrew LLVM so ThinLTO
-  archives remain readable.
-- Patches the default HPN port to `22`.
-- Applies the macOS SDK 27 sandbox declaration compatibility patch.
-- Disables AWS-LC-incompatible AES-CTR-MT and ChaCha20-Poly1305-MT paths.
-- Strips and ad-hoc signs generated Mach-O executables.
-- Validates version, architecture, linkage, Kerberos, system zlib/libedit,
-  port `22`, and absence of `libbsm`.
-
-## Published Bottle
-
-The Homebrew formula and bottle are maintained separately:
-
-```sh
-brew tap cecilyen/hpnssh
-brew install hpnssh-awslc
-```
-
-See [cecilyen/homebrew-hpnssh](https://github.com/cecilyen/homebrew-hpnssh).
-
-## References
-
-- [HPN-SSH upstream](https://github.com/rapier1/hpn-ssh)
-- [OpenSSH portable upstream](https://github.com/openssh/openssh-portable)
+The formula records the source archive checksum. The binary bottle checksum is
+listed in [Packaging](PACKAGING.md).

@@ -1,54 +1,60 @@
 # Packaging
 
-The preferred binary distribution is the Homebrew bottle in the separate
+The supported binary distribution is the bottle in the separate
 [cecilyen/homebrew-hpnssh](https://github.com/cecilyen/homebrew-hpnssh) tap.
-The root repository remains the source-build and benchmark project.
+This repository contains source-build, validation, benchmark, cleanup, and
+direct-archive tooling.
 
-## Homebrew Bottle
+## Published Bottle
 
-Current release:
+| Field | Value |
+| --- | --- |
+| Formula | `cecilyen/hpnssh/hpnssh-awslc` |
+| Release tag | `hpnssh-awslc-18.11.0-macos26-arm64` |
+| Bottle tag | `arm64_tahoe` |
+| Runtime Homebrew dependency | `aws-lc` |
+| Bottle file | `hpnssh-awslc-18.11.0.arm64_tahoe.bottle.tar.gz` |
+| SHA-256 | `798f6a4b6964486e88a96ebccc182840720f766c5af37e7e5d54e6a0ddddc62c` |
 
-- Tag: `hpnssh-awslc-18.11.0-macos26-arm64`
-- Bottle tag: `arm64_tahoe`
-- Runtime Homebrew dependency: `aws-lc`
-- Release: [HPN-SSH 18.11.0 AWS-LC bottle](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.0-macos26-arm64)
+Release page:
+[HPN-SSH 18.11.0 AWS-LC bottle](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.0-macos26-arm64)
 
-Install:
+Install it through Homebrew so dependency handling, relocation, and checksum
+verification are automatic:
 
 ```sh
 brew tap cecilyen/hpnssh
 brew install hpnssh-awslc
 ```
 
-The bottle recipe, build script, upload script, release procedure, and
-checksums live in the tap repository. The bottle is built with
-`brew install --build-bottle`, tested with `brew test`, and validated by
-pouring it into a second Homebrew prefix to exercise binary relocation.
+The release also contains the bottle JSON, formula snapshot, checksum list,
+and release documentation. It does not contain source worktrees, build logs,
+local SSH configuration, or host private keys.
 
-The release assets are:
+## Bottle Validation
 
-- `hpnssh-awslc-18.11.0.arm64_tahoe.bottle.tar.gz`
-- `hpnssh-awslc--18.11.0.arm64_tahoe.bottle.json`
-- `hpnssh-awslc.rb`
-- `SHA256SUMS`
-- Release and tap documentation
+Before publication, the bottle was:
 
-Host private keys, local SSH configuration, source trees, and build logs are
-not release assets.
+1. Built with `brew install --build-bottle`.
+2. Checked with `brew audit --strict` and `brew test`.
+3. Poured into a second Homebrew prefix to exercise relocation.
+4. Checked for ARM64 Mach-O binaries, ad-hoc signatures, port `22`, runtime
+   linkage, and absence of build-prefix strings and host private keys.
+5. Downloaded from the public GitHub release and tested again.
+
+The tap repository is the canonical location for its formula and bottle
+release process. The ignored `homebrew-tap/` directory in this workspace is
+only a local checkout.
 
 ## Direct Archives
 
-The root repository can still create direct-install archives from local build
-outputs:
+Direct archives are secondary artifacts for manual installation testing. The
+packager needs Homebrew `bfs` and `uutils-coreutils` in addition to a completed
+build:
 
 ```sh
+brew install bfs uutils-coreutils
 scripts/package-github-release.sh
-```
-
-To include every available local variant:
-
-```sh
-scripts/package-github-release.sh --all-variants
 ```
 
 Default output:
@@ -57,9 +63,15 @@ Default output:
 release/hpnssh-18.11.0-macos26-arm64/
 ```
 
-The direct-archive packager validates the version, ARM64 architecture,
-signatures, system libedit for the preferred variant, and absence of
-`libbsm`. Direct archives are secondary to the tested Homebrew bottle.
+Pass `--all-variants` only when all local comparison builds are intentional:
+
+```sh
+scripts/package-github-release.sh --all-variants
+```
+
+The packager validates version, ARM64 architecture, signatures, preferred
+system-libedit linkage, and absence of `libbsm`. Do not publish an archive
+that contains host keys, local configuration, logs, or an unvalidated build.
 
 ## References
 

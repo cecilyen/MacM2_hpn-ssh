@@ -1,77 +1,111 @@
 # Troubleshooting
 
-Most local failures come from dynamic library paths, macOS code signing after
-copying binaries, or missing optional global configuration files.
-
-## Copied Binary Is Killed By macOS
-
-If `hpnssh` works inside the build tree but fails after copying to `~/bin`, sign
-the copied binary:
+Start by identifying which installation you are running:
 
 ```sh
-codesign --force --sign - ~/bin/hpnssh
+command -v hpnssh
+hpnssh -V
+otool -L "$(command -v hpnssh)"
+codesign --verify --verbose=2 "$(command -v hpnssh)"
 ```
 
-The build script signs binaries after stripping. Copying or modifying a Mach-O
-binary can require signing the final file again.
+The Homebrew bottle normally resolves to `/opt/homebrew/bin/hpnssh`. A manual
+source installation normally resolves under
+`/opt/hpnssh-awslc-system-zlib/bin`.
 
-## Missing Global Known Hosts Files
+## A Copied Binary Is Killed By macOS
 
-Verbose client output may show:
+Use the Homebrew-installed binary when possible. If a build-tree executable
+works but a copy in `~/bin` is killed, verify and reapply its ad-hoc signature:
+
+```sh
+codesign --verify --verbose=2 ~/bin/hpnssh
+codesign --force --sign - ~/bin/hpnssh
+codesign --verify --verbose=2 ~/bin/hpnssh
+```
+
+Copy after stripping, then sign the final copy. Also confirm that its AWS-LC
+dependency still resolves:
+
+```sh
+otool -L ~/bin/hpnssh
+```
+
+## AWS-LC Cannot Be Loaded
+
+A missing `libcrypto.dylib` path or an AWS-LC upgrade can leave a copied or old
+binary unusable. For the Homebrew package, rebuild both sides of the linkage:
+
+```sh
+brew reinstall aws-lc
+brew reinstall hpnssh-awslc
+brew test hpnssh-awslc
+```
+
+Do not replace an AWS-LC dylib with an OpenSSL or LibreSSL dylib. They are not
+ABI-compatible substitutes.
+
+## Missing Global Known-Hosts Files
+
+The bottle creates empty global stores at:
 
 ```text
-load_hostkeys: fopen /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts: No such file or directory
-load_hostkeys: fopen /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts2: No such file or directory
+/opt/homebrew/etc/hpnssh/ssh_known_hosts
+/opt/homebrew/etc/hpnssh/ssh_known_hosts2
 ```
 
-Those are optional global host-key stores. User host keys still live in
-`~/.ssh/known_hosts`. To silence the message:
-
-```sh
-sudo mkdir -p /opt/hpnssh-awslc-system-zlib/etc/hpnssh
-sudo touch /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts2
-sudo chmod 0644 /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts /opt/hpnssh-awslc-system-zlib/etc/hpnssh/ssh_known_hosts2
-```
+If either is missing from a Homebrew installation, reinstall the formula. A
+direct source installation can create empty `0644` files under its own
+`etc/hpnssh` directory. These are optional global stores; per-user host keys
+remain in `~/.ssh/known_hosts`.
 
 ## Check Linked Libraries
 
 ```sh
-otool -L /path/to/hpnssh
+otool -L "$(command -v hpnssh)"
+otool -L "$(command -v hpnsftp)"
 ```
 
-Expected AWS-LC + macOS zlib linkage includes Homebrew `aws-lc` for
-`libcrypto`, `/usr/lib/libz.1.dylib` for compression, and Apple's Kerberos
-framework. `hpnsftp` should link `/usr/lib/libedit.3.dylib`, not Homebrew
-`libedit`. The binaries should not include `libbsm`, Homebrew
-`zlib-ng-compat`, or Homebrew `openssl@3`.
+The supported build should show AWS-LC `libcrypto`, macOS zlib, and Apple's
+Kerberos framework. `hpnsftp` should also show macOS libedit. It should not
+show `libbsm`, Homebrew zlib-ng-compat, Homebrew libedit, or OpenSSL 3.
 
 ## Use With sshfs
 
-For macos-fuse-t `sshfs`, pass the HPN-SSH client path through `ssh_command`:
+For `macos-fuse-t/sshfs`, select the Homebrew HPN client explicitly:
 
 ```sh
 sshfs user@host:/remote /mount/point \
-  -o ssh_command=/opt/hpnssh-awslc-system-zlib/bin/hpnssh
+  -o ssh_command='/opt/homebrew/bin/hpnssh -o Fallback=no'
 ```
 
-When you need to disable HPN's fallback behavior explicitly:
+For a direct installation, replace the path with
+`/opt/hpnssh-awslc-system-zlib/bin/hpnssh`.
 
-```sh
-sshfs user@host:/remote /mount/point \
-  -o ssh_command='/opt/hpnssh-awslc-system-zlib/bin/hpnssh -o Fallback=no'
-```
+## Fallback Repeats Port 22
 
-## Fallback Port Loop
-
-This project patches HPN's default client port from `2222` to `22`. If a client
-prints a fallback message that also targets port `22`, run with:
+This project sets both HPN and standard SSH defaults to port `22`. Disable the
+HPN fallback attempt when it would retry the same endpoint:
 
 ```sh
 hpnssh -o Fallback=no host
 ```
 
+## Regression Test Stops At Recursive SCP
+
+On the validated macOS 26 environment, the full upstream suite can report
+`Directory loop detected` when `/usr/bin/diff -r` follows the test fixture's
+absolute symlink. Preserve the log and run focused transfer and formula tests;
+do not classify unrelated transfer failures as this known test-harness issue.
+
+## hpnsshd Conflicts With Remote Login
+
+Both use port `22` by default. Do not start `hpnsshd` beside macOS Remote Login
+without selecting a nonconflicting listener and obtaining any required
+administrator or organization approval. The bottle does not install host
+keys or start the server automatically.
+
 ## References
 
-- macos-fuse-t sshfs: <https://github.com/macos-fuse-t/sshfs>
-- Apple `codesign` manual: `man codesign`
-- Apple `otool` manual: `man otool`
+- [macos-fuse-t sshfs](https://github.com/macos-fuse-t/sshfs)
+- Apple manuals: `man codesign`, `man otool`, and `man ssh_config`
