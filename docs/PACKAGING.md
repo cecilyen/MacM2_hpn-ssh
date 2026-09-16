@@ -1,59 +1,68 @@
 # Packaging
 
-Publish source from the root repository and publish validated binary tarballs
-from `release/` as GitHub Release assets.
+The preferred binary distribution is the Homebrew bottle in the separate
+[cecilyen/homebrew-hpnssh](https://github.com/cecilyen/homebrew-hpnssh) tap.
+The root repository remains the source-build and benchmark project.
 
-The preferred publishable binary variant is `hpnssh-awslc-system-zlib`, which
-uses Homebrew AWS-LC for `libcrypto` and macOS `/usr/lib/libz.1.dylib` for
-compression. Its `hpnsftp` binary links macOS `/usr/lib/libedit.3.dylib`, so
-the minimal Homebrew runtime set is only `aws-lc`. The supported runtime target
-is documented in `docs/SYSTEM_REQUIREMENTS.md`.
+## Homebrew Bottle
 
-## GitHub Binary Release Assets
+Current release:
 
-Generate the preferred release-ready binary archive from the latest local build
-output:
+- Tag: `hpnssh-awslc-18.11.0-macos26-arm64`
+- Bottle tag: `arm64_tahoe`
+- Runtime Homebrew dependency: `aws-lc`
+- Release: [HPN-SSH 18.11.0 AWS-LC bottle](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.0-macos26-arm64)
+
+Install:
+
+```sh
+brew tap cecilyen/hpnssh
+brew install hpnssh-awslc
+```
+
+The bottle recipe, build script, upload script, release procedure, and
+checksums live in the tap repository. The bottle is built with
+`brew install --build-bottle`, tested with `brew test`, and validated by
+pouring it into a second Homebrew prefix to exercise binary relocation.
+
+The release assets are:
+
+- `hpnssh-awslc-18.11.0.arm64_tahoe.bottle.tar.gz`
+- `hpnssh-awslc--18.11.0.arm64_tahoe.bottle.json`
+- `hpnssh-awslc.rb`
+- `SHA256SUMS`
+- Release and tap documentation
+
+Host private keys, local SSH configuration, source trees, and build logs are
+not release assets.
+
+## Direct Archives
+
+The root repository can still create direct-install archives from local build
+outputs:
 
 ```sh
 scripts/package-github-release.sh
 ```
 
-To package every known local variant instead of only the preferred AWS-LC +
-macOS zlib build:
+To include every available local variant:
 
 ```sh
 scripts/package-github-release.sh --all-variants
 ```
 
-The output directory is:
+Default output:
 
 ```text
-release/hpnssh-18.9.0-macos26-arm64/
+release/hpnssh-18.11.0-macos26-arm64/
 ```
 
-The packager validates selected variants before archiving them. It skips
-binaries that fail `hpnssh -V`, are not `arm64`, or still link `libbsm`. Each
-release directory includes:
-
-- `*.tar.gz` binary archives.
-- `SHA256SUMS`.
-- `MANIFEST.txt`.
-- `SKIPPED.txt`.
-- `RELEASE_NOTES.md`.
-
-## Upload Release Assets
-
-```sh
-gh release upload hpnssh-18.9.0-macos26-arm64 \
-  release/hpnssh-18.9.0-macos26-arm64/*.tar.gz \
-  release/hpnssh-18.9.0-macos26-arm64/SHA256SUMS \
-  release/hpnssh-18.9.0-macos26-arm64/MANIFEST.txt \
-  release/hpnssh-18.9.0-macos26-arm64/SKIPPED.txt \
-  release/hpnssh-18.9.0-macos26-arm64/RELEASE_NOTES.md
-```
-
-Add `--clobber` when replacing an existing asset with a regenerated file.
+The direct-archive packager validates the version, ARM64 architecture,
+signatures, system libedit for the preferred variant, and absence of
+`libbsm`. Direct archives are secondary to the tested Homebrew bottle.
 
 ## References
 
-- GitHub CLI release upload: <https://cli.github.com/manual/gh_release_upload>
+- [Homebrew bottles](https://docs.brew.sh/Bottles)
+- [Creating a Homebrew tap](https://docs.brew.sh/How-to-Create-and-Maintain-a-Tap)
+- [GitHub CLI release upload](https://cli.github.com/manual/gh_release_upload)

@@ -55,7 +55,7 @@ mkdir -p "$PGO_RAW"
 CFLAGS="-fprofile-generate=${PGO_RAW}" \
 CXXFLAGS="-fprofile-generate=${PGO_RAW}" \
 LDFLAGS="-fprofile-generate=${PGO_RAW}" \
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.9.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
 Train it with real workloads:
@@ -80,7 +80,7 @@ xcrun llvm-profdata merge -output "$PROF" "$PGO_RAW"
 CFLAGS="-fprofile-use=${PROF}" \
 CXXFLAGS="-fprofile-use=${PROF}" \
 LDFLAGS="-fprofile-use=${PROF} -Wl,-dead_strip" \
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.9.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
 Limitations: PGO optimizes HPN-SSH/OpenSSH objects only. It does not optimize

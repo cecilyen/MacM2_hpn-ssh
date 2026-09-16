@@ -1,97 +1,79 @@
 # MacM2 HPN-SSH
 
-This repository builds and packages isolated HPN-SSH 18.9 clients and daemons
-for Apple Silicon macOS without replacing Apple's system OpenSSH binaries.
+This repository builds isolated HPN-SSH for Apple Silicon macOS without
+replacing Apple's system OpenSSH. The current published package is a Homebrew
+bottle built with AWS-LC.
 
-The build automation downloads HPN-SSH from the official
-[rapier1/hpn-ssh](https://github.com/rapier1/hpn-ssh) repository, configures it
-for macOS, compiles `arm64` binaries, and keeps the upstream `hpn` command names
-such as `hpnssh`, `hpnsshd`, `hpnscp`, and `hpnsftp`.
+## Current Release
 
-## Current Published Build
-
-The current published build is:
-
-- HPN-SSH: `18.9.0`
-- OpenSSH base: `10.3p1`
-- Crypto: Homebrew AWS-LC `5.1.0`
+- HPN-SSH: `18.11.0`
+- OpenSSH base: `10.5p1`
+- Crypto: Homebrew AWS-LC `5.9.0`
 - Compression: macOS system `zlib`
-- Architecture: `arm64`
-- macOS target: macOS 26 on Apple Silicon
-- Default client port: `22`
+- Line editing: macOS system `libedit`
+- Security integration: PAM and Apple's Kerberos framework; no `libbsm`
+- Architecture and OS: Apple Silicon `arm64`, macOS 26 Tahoe
+- Default client and server port: `22`
 - Build flags:
   `CFLAGS="-O3 -arch arm64 -flto=thin -pipe"`
   `CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"`
   `LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"`
-- Install prefix: `/opt/hpnssh-awslc-system-zlib`
 
-## Install From GitHub Release
-
-System requirements are documented in
-[`docs/SYSTEM_REQUIREMENTS.md`](docs/SYSTEM_REQUIREMENTS.md). In short, the
-published archive targets macOS 26 on Apple Silicon `arm64` systems and uses
-Homebrew AWS-LC as its only Homebrew runtime library.
-
-Install the minimal Homebrew runtime libraries first:
+## Install With Homebrew
 
 ```sh
-brew install aws-lc
+brew tap cecilyen/hpnssh
+brew install hpnssh-awslc
+hpnssh -V
 ```
 
-This is the only Homebrew package required to run all binaries in the
-AWS-LC + macOS zlib archive. The packaged tools also link macOS-provided system
-libraries and frameworks such as Kerberos, PAM, libresolv, libSystem, libz,
-libedit, libsandbox, and system ncurses.
+Expected version output:
 
-Runtime linkage checked from the published build:
+```text
+OpenSSH_10.5p1_hpn18.11.0, AWS-LC 5.9.0
+```
 
-| Binary set | Homebrew runtime libraries |
-| --- | --- |
-| `hpnssh`, `hpnscp`, `hpnssh-add`, `hpnssh-agent`, `hpnssh-keygen`, `hpnssh-keyscan`, `hpnssh-keysign`, `hpnssh-pkcs11-helper`, `hpnssh-sk-helper`, `hpnsshd`, `hpnsshd-auth`, `hpnsshd-session` | `aws-lc` |
-| `hpnsftp` | none from Homebrew |
-| `hpnsftp-server` | none from Homebrew |
+Homebrew installs AWS-LC automatically. zlib, libedit, PAM, and Kerberos come
+from macOS, so they are not Homebrew runtime dependencies.
 
-Download the preferred release archive from this repository's GitHub Releases
-page, then:
+The tap and bottle are published at:
+
+- [cecilyen/homebrew-hpnssh](https://github.com/cecilyen/homebrew-hpnssh)
+- [HPN-SSH 18.11.0 AWS-LC bottle](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.0-macos26-arm64)
+
+The installed commands retain the upstream HPN names: `hpnssh`, `hpnsshd`,
+`hpnscp`, `hpnsftp`, and related helpers. They do not overwrite
+`/usr/bin/ssh`, `/usr/sbin/sshd`, or Homebrew OpenSSH.
+
+Homebrew configuration paths:
+
+- Client: `/opt/homebrew/etc/hpnssh/ssh_config`
+- Server: `/opt/homebrew/etc/hpnssh/sshd_config`
+- Global known hosts: `/opt/homebrew/etc/hpnssh/ssh_known_hosts{,2}`
+
+The bottle does not contain host private keys and does not install or start a
+`launchd` service.
+
+## Verify
 
 ```sh
-mkdir -p /tmp/machpnssh
-tar -xzf hpnssh-awslc-system-zlib-hpnssh-18.9.0-macos26-arm64.tar.gz -C /tmp/machpnssh
-
-sudo mkdir -p /opt/hpnssh-awslc-system-zlib
-sudo cp -R /tmp/machpnssh/hpnssh-awslc-system-zlib/bin /opt/hpnssh-awslc-system-zlib/
-sudo codesign --force --sign - /opt/hpnssh-awslc-system-zlib/bin/hpnssh
-
-/opt/hpnssh-awslc-system-zlib/bin/hpnssh -V
-otool -L /opt/hpnssh-awslc-system-zlib/bin/hpnssh
+hpnssh -V
+hpnssh -F /dev/null -G localhost | grep '^port '
+otool -L "$(command -v hpnssh)"
+otool -L "$(command -v hpnsftp)"
+brew test hpnssh-awslc
 ```
 
-If you want the tools on your shell path:
-
-```sh
-mkdir -p "$HOME/bin"
-ln -sf /opt/hpnssh-awslc-system-zlib/bin/hpnssh "$HOME/bin/hpnssh"
-ln -sf /opt/hpnssh-awslc-system-zlib/bin/hpnscp "$HOME/bin/hpnscp"
-ln -sf /opt/hpnssh-awslc-system-zlib/bin/hpnsftp "$HOME/bin/hpnsftp"
-```
-
-If macOS terminates a copied binary with `SIGKILL`, ad-hoc sign the final copy:
-
-```sh
-codesign --force --sign - "$HOME/bin/hpnssh"
-```
+Expected runtime linkage includes Homebrew AWS-LC, macOS system zlib, and
+Apple's Kerberos framework. `hpnsftp` also links macOS system libedit.
 
 ## Compile From Source
 
 Install build dependencies:
 
 ```sh
-brew install autoconf automake libtool aws-lc
+brew install autoconf automake libtool llvm pkgconf aws-lc
 ```
-
-The build dependencies are broader than the runtime set because compiling from
-source requires Autoconf, Automake, and Libtool. Running the released binaries
-does not require those build tools.
 
 Clone this repository:
 
@@ -100,111 +82,92 @@ git clone https://github.com/cecilyen/MacM2_hpn-ssh.git
 cd MacM2_hpn-ssh
 ```
 
-Build the preferred AWS-LC + macOS zlib variant:
+Build the preferred AWS-LC plus macOS zlib/libedit variant:
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.9.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
 ```
 
-The script writes a fresh source/build tree under
-`build-awslc-system-zlib/runs/` and a timestamped log under `logs/`. It does
-not install by default.
+The script writes a fresh source tree under
+`build-awslc-system-zlib/runs/` and a timestamped log under `logs/`. It
+does not install by default.
 
-Install after a successful build:
+To install into the isolated direct-build prefix after a successful build:
 
 ```sh
-sudo scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.9.0 --install
+sudo scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
+  --tag hpn-18.11.0 --install
 ```
 
-Verify the installed client:
-
-```sh
-/opt/hpnssh-awslc-system-zlib/bin/hpnssh -V
-/opt/hpnssh-awslc-system-zlib/bin/hpnssh -G localhost | grep '^port '
-otool -L /opt/hpnssh-awslc-system-zlib/bin/hpnssh
-```
-
-Expected version output includes:
-
-```text
-OpenSSH_10.3p1_hpn18.9.0, AWS-LC 5.1.0
-```
-
-## Other Build Variants
-
-The shared build script also supports OpenSSL 3, AWS-LC with Homebrew zlib, and
-AWS-LC with zlib-ng-compat:
-
-```sh
-scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.9.0
-scripts/build-hpnssh-macos-arm64-awslc.sh --tag hpn-18.9.0
-scripts/build-hpnssh-macos-arm64-awslc-zlibng.sh --tag hpn-18.9.0
-```
-
-Those variants are retained for comparison and local experiments. The AWS-LC +
-macOS zlib variant is the preferred published build because it requires fewer
-Homebrew runtime libraries than the zlib-ng variant while still using AWS-LC
-for `libcrypto`.
+The direct-build prefix is `/opt/hpnssh-awslc-system-zlib`. Administrative
+installation and daemon deployment may require organization approval.
 
 ## Build Behavior
 
-The build scripts:
+The preferred builder:
 
-- Resolve Homebrew paths dynamically.
-- Map AWS-LC/OpenSSL and selected zlib-compatible headers and libraries into
-  compiler and linker flags.
-- Use `xcrun --show-sdk-path` for macOS Software Development Kit (SDK) paths.
-- Use macOS SDK/system `zlib` and `libedit` in the preferred AWS-LC build.
-- Compile `arm64`; the AWS-LC + macOS zlib wrapper uses generic ThinLTO flags
-  for M1-and-newer Apple Silicon compatibility.
-- Run `autoreconf -fi`.
-- Configure Pluggable Authentication Modules (PAM) and Kerberos/GSSAPI support
-  through Apple's Kerberos framework.
-- Patch HPN's default client port back to `22`.
-- Strip debug symbols and ad-hoc sign generated Mach-O executables.
-- Validate `hpnssh -V`, architecture, linked libraries, default port, Kerberos,
-  and absence of `libbsm`.
+- Resolves the latest official `hpn-18.11.x` tag.
+- Resolves Homebrew dependency paths dynamically.
+- Uses the macOS SDK path reported by `xcrun --show-sdk-path`.
+- Runs `autoreconf -fi`.
+- Compiles ARM64 with generic M1-and-newer ThinLTO flags.
+- Uses `sysctl -n hw.ncpu` for parallel compilation.
+- Configures PAM and Kerberos/GSSAPI through Apple's Kerberos framework.
+- Uses macOS SDK/system zlib and libedit.
+- Patches the HPN default port to `22`.
+- Applies the macOS SDK 27 sandbox declaration compatibility patch.
+- Disables AWS-LC-incompatible HPN AES-CTR-MT and
+  ChaCha20-Poly1305-MT paths while retaining standard AES-CTR, AES-GCM, and
+  `chacha20-poly1305@openssh.com`.
+- Strips debug symbols and ad-hoc signs each Mach-O executable.
+- Validates version, architecture, port, linkage, Kerberos, and absence of
+  `libbsm`.
 
-## Package A GitHub Release
+## Other Variants
 
-Generate release-ready archives from the latest local build outputs:
+The shared builder also supports OpenSSL 3, AWS-LC with Homebrew zlib, and
+AWS-LC with zlib-ng-compat:
 
 ```sh
-scripts/package-github-release.sh
+scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-zlibng.sh --tag hpn-18.11.0
 ```
 
-The output appears under:
-
-```text
-release/hpnssh-18.9.0-macos26-arm64/
-```
-
-Upload the generated `*.tar.gz`, `SHA256SUMS`, `MANIFEST.txt`, `SKIPPED.txt`,
-and `RELEASE_NOTES.md` files as GitHub Release assets.
+These variants are retained for comparison and local testing. The published
+Homebrew bottle uses AWS-LC plus macOS zlib/libedit to minimize runtime
+dependencies.
 
 ## Repository Layout
 
 | Path | Purpose |
 | --- | --- |
-| `scripts/` | Build, cleanup, and release packaging scripts |
-| `docs/` | Detailed system requirements, build, optimization, troubleshooting, packaging, and layout notes |
+| `scripts/` | Build, cleanup, benchmark, and direct-archive scripts |
+| `docs/` | System requirements, build, optimization, and packaging notes |
 | `projects/` | Variant-specific build profiles |
-| `build*/`, `logs/`, `profiles/`, `release/` | Generated local artifacts ignored by Git |
+| `homebrew-tap/` | Ignored local checkout of the separate Homebrew tap repository |
+| `build*/`, `logs/`, `release/`, `dist/` | Generated artifacts ignored by Git |
 
 ## Limitations
 
-- These binaries target Apple Silicon `arm64`, not Intel macOS.
-- AWS-LC is Application Programming Interface (API) compatible with much of
-  OpenSSL, but it is not an Application Binary Interface (ABI) stable drop-in
-  library replacement.
-- The scripts compile HPN-SSH but do not create production host keys, a
-  `launchd` service, or a site authentication policy.
-- Compiler flags can help local throughput, but network latency, cipher choice,
-  compression, congestion control, storage, and the remote host also affect SSH
-  performance.
+- The published bottle targets macOS 26 on Apple Silicon, not Intel macOS.
+- AWS-LC is source-compatible with much of OpenSSL but is not an ABI-stable
+  drop-in replacement.
+- Running `hpnsshd` on port 22 can conflict with macOS Remote Login.
+- Compiler flags do not remove network, storage, remote-host, or protocol
+  bottlenecks.
+
+## Documentation
+
+- [System requirements](docs/SYSTEM_REQUIREMENTS.md)
+- [Building](docs/BUILDING.md)
+- [Optimization](docs/OPTIMIZATION.md)
+- [Packaging](docs/PACKAGING.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## References
 
-- HPN-SSH upstream: <https://github.com/rapier1/hpn-ssh>
-- OpenSSH portable upstream: <https://github.com/openssh/openssh-portable>
-- AWS-LC: <https://github.com/aws/aws-lc>
+- [HPN-SSH upstream](https://github.com/rapier1/hpn-ssh)
+- [OpenSSH portable upstream](https://github.com/openssh/openssh-portable)
+- [AWS-LC upstream](https://github.com/aws/aws-lc)
+- [Homebrew bottle documentation](https://docs.brew.sh/Bottles)

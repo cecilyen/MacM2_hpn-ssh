@@ -1,65 +1,71 @@
 # System Requirements
 
-The published binary archive targets macOS 26 on Apple Silicon `arm64` systems.
-It is not an Intel macOS build, and it is not intended to replace Apple's system
+The published Homebrew bottle targets macOS 26 Tahoe on Apple Silicon
+`arm64`. It is not an Intel build and does not replace Apple's system
 OpenSSH.
 
-## Supported Runtime Target
+## Supported Runtime
 
 | Requirement | Supported value |
 | --- | --- |
-| Operating system | macOS 26 |
+| Operating system | macOS 26 Tahoe |
 | CPU architecture | Apple Silicon `arm64` |
-| Validated machine class | 2023 MacBook Pro with M2 Max and 32 GB memory |
+| Validated machine | 2023 MacBook Pro, M2 Max, 32 GB |
 | Homebrew prefix | `/opt/homebrew` |
-| Install prefix | `/opt/hpnssh-awslc-system-zlib` |
-| HPN-SSH default port | `22` |
-| Crypto runtime | Homebrew `aws-lc` |
-| Compression runtime | macOS `/usr/lib/libz.1.dylib` |
-| Line-editing runtime | macOS `/usr/lib/libedit.3.dylib` for `hpnsftp` |
+| Formula | `cecilyen/hpnssh/hpnssh-awslc` |
+| HPN-SSH | `18.11.0`, based on OpenSSH `10.5p1` |
+| Default port | `22` |
+| Crypto | Homebrew AWS-LC `5.9.0` at build time |
+| Compression | macOS `/usr/lib/libz.1.dylib` |
+| Line editing | macOS `/usr/lib/libedit.3.dylib` for `hpnsftp` |
 
-This project's release archive is narrower than the full set of Macs that may
-be able to run macOS 26. Intel Macs are outside the supported binary target for
-this repository because the packaged binaries are Mach-O `arm64` executables
-and the runtime dependency path assumes Apple Silicon Homebrew.
-
-## Minimum Runtime Dependencies
-
-Install the only required Homebrew runtime library:
+## Install
 
 ```sh
-brew install aws-lc
+brew tap cecilyen/hpnssh
+brew install hpnssh-awslc
 ```
 
-The preferred AWS-LC + macOS zlib package does not require Homebrew `openssl@3`,
-Homebrew `zlib`, Homebrew `zlib-ng`, or Homebrew `libedit` at runtime.
+AWS-LC is the only Homebrew runtime dependency and is installed
+automatically. The bottle does not require Homebrew OpenSSL, zlib,
+zlib-ng-compat, or libedit.
 
-Expected system libraries and frameworks are provided by macOS 26:
+macOS provides:
 
 - `/usr/lib/libSystem.B.dylib`
 - `/usr/lib/libresolv.9.dylib`
 - `/usr/lib/libz.1.dylib`
-- `/usr/lib/libedit.3.dylib` for `hpnsftp`
-- `/usr/lib/libncurses.5.4.dylib` for `hpnsftp`
+- `/usr/lib/libedit.3.dylib`
 - `/System/Library/Frameworks/Kerberos.framework`
+- PAM and the Darwin sandbox libraries
 
-## Build Host Requirements
+## Paths
 
-To compile from source on macOS 26:
+| Item | Path |
+| --- | --- |
+| Commands | `/opt/homebrew/bin/hpn*` and `/opt/homebrew/sbin/hpnsshd` |
+| Client configuration | `/opt/homebrew/etc/hpnssh/ssh_config` |
+| Server configuration | `/opt/homebrew/etc/hpnssh/sshd_config` |
+| Global known hosts | `/opt/homebrew/etc/hpnssh/ssh_known_hosts{,2}` |
+| Formula keg | `/opt/homebrew/Cellar/hpnssh-awslc/18.11.0` |
 
-- Apple Silicon Mac with the macOS command line developer tools or Xcode
-  toolchain available through `xcrun`.
-- Homebrew installed under `/opt/homebrew`.
-- Build dependencies:
+The bottle contains no host private keys and does not install a `launchd`
+service.
+
+## Build Host
+
+Source compilation requires:
+
+- macOS 26 on Apple Silicon
+- Command line developer tools or Xcode through `xcrun`
+- Homebrew under `/opt/homebrew`
+- These build packages:
 
 ```sh
-brew install autoconf automake libtool aws-lc
+brew install autoconf automake libtool llvm pkgconf aws-lc
 ```
 
-The preferred build wrapper uses macOS SDK/system `zlib` and `libedit`, so
-Homebrew `zlib` and Homebrew `libedit` are not required for that variant.
-
-The local publication flags are:
+The preferred flags are:
 
 ```sh
 CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
@@ -67,42 +73,36 @@ CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
 LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
 ```
 
-These flags are intentionally generic for M1-and-newer Apple Silicon rather
-than tuned only for M2 Max.
+These flags are generic for M1-and-newer Apple Silicon, not only M2 Max.
 
-## Operational Notes
+## Operational Limits
 
-- Keep the HPN-SSH installation isolated under `/opt/hpnssh-awslc-system-zlib`
-  or another dedicated prefix.
-- Do not overwrite `/usr/bin/ssh`, `/usr/sbin/sshd`, `/opt/homebrew/bin/ssh`,
-  or stock OpenSSH configuration files.
-- Running `hpnsshd` on privileged port `22` can conflict with Apple's system
-  SSH service and may require administrator and organization approval.
-- If a copied binary is killed by macOS with `SIGKILL`, ad-hoc sign the final
-  copied file with `codesign --force --sign - /path/to/hpnssh`.
-- The build is configured without `libbsm`; Kerberos/GSSAPI support uses
-  Apple's Kerberos framework.
+- Running `hpnsshd` on port 22 can conflict with macOS Remote Login and may
+  require administrator and organization approval.
+- The formula uses PAM and Apple's Kerberos framework but not `libbsm`.
+- AWS-LC builds disable HPN-SSH's custom AES-CTR-MT and
+  ChaCha20-Poly1305-MT paths because AWS-LC lacks their required legacy
+  OpenSSL APIs.
+- Standard AES-CTR, AES-GCM, and `chacha20-poly1305@openssh.com` remain.
 
-## Verification Commands
+## Verify
 
 ```sh
-/opt/hpnssh-awslc-system-zlib/bin/hpnssh -V
-/opt/hpnssh-awslc-system-zlib/bin/hpnssh -G localhost | grep '^port '
-otool -L /opt/hpnssh-awslc-system-zlib/bin/hpnssh
-otool -L /opt/hpnssh-awslc-system-zlib/bin/hpnsftp
+hpnssh -V
+hpnssh -F /dev/null -G localhost | grep '^port '
+otool -L "$(command -v hpnssh)"
+otool -L "$(command -v hpnsftp)"
+brew test hpnssh-awslc
 ```
 
-Expected results:
+Expected version:
 
-- `hpnssh -V` reports `OpenSSH_10.3p1_hpn18.9.0, AWS-LC 5.1.0`.
-- `hpnssh` links Homebrew AWS-LC and macOS `/usr/lib/libz.1.dylib`.
-- `hpnsftp` links macOS `/usr/lib/libedit.3.dylib`.
-- No HPN executable links Homebrew `libedit`, Homebrew `zlib-ng-compat`, or
-  `libbsm`.
+```text
+OpenSSH_10.5p1_hpn18.11.0, AWS-LC 5.9.0
+```
 
 ## References
 
-- Apple macOS information and compatibility entry point: <https://www.apple.com/os/macos/>
-- Homebrew AWS-LC formula: <https://formulae.brew.sh/formula/aws-lc>
-- AWS-LC upstream: <https://github.com/aws/aws-lc>
-- HPN-SSH upstream: <https://github.com/rapier1/hpn-ssh>
+- [Homebrew AWS-LC formula](https://formulae.brew.sh/formula/aws-lc)
+- [AWS-LC upstream](https://github.com/aws/aws-lc)
+- [HPN-SSH upstream](https://github.com/rapier1/hpn-ssh)

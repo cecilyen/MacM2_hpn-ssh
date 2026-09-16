@@ -1,9 +1,9 @@
 # Project Layout
 
-Source and packaging files are small and stable. Build trees, logs, profiles,
-and release output are generated artifacts and should stay out of Git.
+Source and publication files stay in Git. Build trees, logs, profiles, and
+release output are generated and ignored.
 
-## Source Files
+## Root Repository
 
 ```text
 README.md
@@ -13,7 +13,7 @@ projects/
 benchmarks/crypto/
 ```
 
-## Generated Files
+Generated root paths:
 
 ```text
 build/
@@ -23,35 +23,47 @@ build-awslc-zlibng/
 logs/
 profiles/
 release/
+dist/
 ```
 
-The generated directories are ignored by the root `.gitignore`.
+## Homebrew Tap
 
-## GitHub Publication
+`homebrew-tap/` is an ignored local checkout of the separate public
+[cecilyen/homebrew-hpnssh](https://github.com/cecilyen/homebrew-hpnssh)
+repository. It contains:
 
-Use the root repository for source code and docs. Use generated tarballs under
-`release/<tag>/` as GitHub Release assets. Do not commit the generated release
-archives into the source tree.
+```text
+Formula/hpnssh-awslc.rb
+README.md
+RELEASE.md
+scripts/build-bottle.sh
+scripts/upload-release.sh
+```
 
-## Cleanup Helper
+The tap repository stores the recipe and release tooling. Bottle tarballs and
+JSON are generated under its ignored `dist/` directory and uploaded as
+GitHub Release assets.
 
-Dry-run cleanup:
+## Cleanup
+
+Dry run:
 
 ```sh
 scripts/clean-generated-artifacts.sh
 ```
 
-Apply cleanup while keeping the newest two build runs per variant:
+Keep the newest two runs per variant:
 
 ```sh
 scripts/clean-generated-artifacts.sh --apply --keep-latest 2
 ```
 
-Remove all generated build, log, profile, and release directories:
+Remove all known generated build, log, profile, and root release directories:
 
 ```sh
 scripts/clean-generated-artifacts.sh --apply --all
 ```
 
-Limitations: the cleanup helper only acts on known generated paths under this
-workspace. It does not touch installation prefixes such as `/opt/hpnssh`.
+The cleanup helper operates only on known paths inside this workspace. It does
+not touch `/opt/hpnssh*`, `/opt/homebrew`, or the separate tap's published
+GitHub assets.

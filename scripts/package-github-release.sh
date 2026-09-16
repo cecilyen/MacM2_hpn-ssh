@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.9.0-macos26-arm64}"
+RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.11.0-macos26-arm64}"
 RELEASE_DIR="${RELEASE_DIR:-${ROOT_DIR}/release/${RELEASE_TAG}}"
 FORCE=0
 REQUIRE_ALL=0
@@ -19,7 +19,7 @@ Package latest validated HPN-SSH build outputs into GitHub Release-ready
 tarballs. Binaries that fail validation are skipped and recorded in SKIPPED.txt.
 
 Options:
-  --release-tag TAG   Release tag/directory name. Default: hpnssh-18.9.0-macos26-arm64.
+  --release-tag TAG   Release tag/directory name. Default: hpnssh-18.11.0-macos26-arm64.
   --release-dir PATH  Output directory. Default: ./release/<tag>.
   --force             Replace an existing release directory.
   --all-variants      Package every known local variant. Default: preferred AWS-LC + macOS zlib only.
@@ -82,14 +82,14 @@ case "$RELEASE_DIR" in
 esac
 
 require_cmd codesign
+require_cmd bfs
 require_cmd date
 require_cmd file
-require_cmd find
 require_cmd mkdir
 require_cmd otool
 require_cmd shasum
-require_cmd sort
 require_cmd tar
+require_cmd uu-sort
 
 if [[ -e "$RELEASE_DIR" ]]; then
   [[ "$FORCE" -eq 1 ]] ||
@@ -110,7 +110,7 @@ latest_run() {
   local workdir="$1"
   local runs_dir="${ROOT_DIR}/${workdir}/runs"
   [[ -d "$runs_dir" ]] || return 0
-  find "$runs_dir" -mindepth 1 -maxdepth 1 -type d -name 'hpn-*' -print | sort -r | head -n 1
+  bfs "$runs_dir" -mindepth 1 -maxdepth 1 -type d -name 'hpn-*' -print | uu-sort -V | tail -n 1
 }
 
 skip_variant() {
@@ -136,7 +136,7 @@ write_variant_readme() {
   cat >"${stage}/README.md" <<EOF
 # ${label}
 
-This archive contains ad-hoc signed HPN-SSH 18.9 arm64 binaries for macOS.
+This archive contains ad-hoc signed HPN-SSH 18.11 arm64 binaries for macOS.
 
 Variant: ${name}
 Source run: ${run_rel}
@@ -227,7 +227,7 @@ package_variant() {
     return 0
   fi
 
-  if [[ "$version" != *"_hpn18.9.0"* ]]; then
+  if [[ "$version" != *"_hpn18.11.0"* ]]; then
     skip_variant "$name" "unexpected version output: ${version}"
     return 0
   fi
@@ -291,7 +291,7 @@ fi
 cat >"$NOTES" <<EOF
 # ${RELEASE_TAG}
 
-This release contains validated HPN-SSH 18.9 macOS arm64 binary archives.
+This release contains validated HPN-SSH 18.11 macOS arm64 binary archives.
 
 Packaged variants: ${PACKAGED}
 Skipped variants: ${SKIPPED}

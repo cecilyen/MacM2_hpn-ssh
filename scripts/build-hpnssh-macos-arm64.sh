@@ -4,7 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 REPO_URL="${HPNSSH_REPO_URL:-https://github.com/rapier1/hpn-ssh.git}"
-VERSION_SERIES="${HPNSSH_VERSION_SERIES:-18.9}"
+VERSION_SERIES="${HPNSSH_VERSION_SERIES:-18.11}"
 TAG="${HPNSSH_TAG:-}"
 PREFIX="${HPNSSH_PREFIX:-/opt/hpnssh}"
 WORKDIR="${HPNSSH_WORKDIR:-${ROOT_DIR}/build}"
@@ -31,8 +31,8 @@ Build HPN-SSH from the official rapier1/hpn-ssh repository for macOS on
 Apple Silicon with arm64, Homebrew libcrypto, Homebrew zlib, PAM, and Kerberos.
 
 Options:
-  --tag TAG              Build an explicit tag, for example hpn-18.9.0.
-  --version-series X.Y   Resolve the latest hpn-X.Y.z tag. Default: 18.9.
+  --tag TAG              Build an explicit tag, for example hpn-18.11.0.
+  --version-series X.Y   Resolve the latest hpn-X.Y.z tag. Default: 18.11.
   --prefix PATH          Configure isolated install prefix. Default: /opt/hpnssh.
   --workdir PATH         Build workspace. Default: ./build.
   --install              Run make install after a successful build.
@@ -61,7 +61,7 @@ Environment:
 Examples:
   scripts/build-hpnssh-macos-arm64.sh
   scripts/build-hpnssh-macos-arm64.sh --prefix /usr/local/hpnssh
-  scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.9.0
+  scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.11.0
 USAGE
 }
 
@@ -207,9 +207,9 @@ while (($#)); do
   esac
 done
 
-[[ "$VERSION_SERIES" =~ ^[0-9]+[.][0-9]+$ ]] || die "--version-series must look like 18.9"
+[[ "$VERSION_SERIES" =~ ^[0-9]+[.][0-9]+$ ]] || die "--version-series must look like 18.11"
 if [[ -n "$TAG" ]]; then
-  [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.9.0"
+  [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.11.0"
 fi
 case "$ZLIB_MODE" in
   homebrew|system) ;;
@@ -599,11 +599,91 @@ patch_default_port() {
   fi
 }
 
+patch_macos_sdk27_sandbox_compat() {
+  local src="$1"
+  local configure_ac="${src}/configure.ac"
+
+  [[ -f "$configure_ac" ]] || die "Expected upstream configure.ac not found: $configure_ac"
+  if grep -q 'ac_cv_have_decl_kSBXProfilePureComputation' "$configure_ac"; then
+    return 0
+  fi
+
+  log "Applying OpenSSH macOS SDK 27 sandbox compatibility patch"
+  rewrite_with_awk "$configure_ac" '
+    /^[[:space:]]*# proc_pidinfo\(\)-based closefrom\(\) replacement[.]/ {
+      print "\tAC_CHECK_DECLS(kSBXProfilePureComputation, [], [], [#include <sandbox.h>])"
+    }
+    /^[[:space:]]*test "x\$ac_cv_header_sandbox_h" = "xyes"\) ; then$/ {
+      print "       test \"x$ac_cv_header_sandbox_h\" = \"xyes\" && \\"
+      print "       test \"x$ac_cv_have_decl_kSBXProfilePureComputation\" = \"xyes\") ; then"
+      next
+    }
+    /^[[:space:]]*"x\$ac_cv_header_sandbox_h" != "xyes" && \\$/ {
+      print "\t     \"x$ac_cv_header_sandbox_h\" != \"xyes\" -o \\"
+      print "\t     \"x$ac_cv_have_decl_kSBXProfilePureComputation\" != \"xyes\" && \\"
+      next
+    }
+    /AC_MSG_ERROR\(\[Darwin seatbelt sandbox requires sandbox[.]h and sandbox_init function\]\)/ {
+      print "\t\tAC_MSG_ERROR([Darwin seatbelt sandbox requires sandbox.h, sandbox_init() and kSBXProfilePureComputation])"
+      next
+    }
+    { print }
+  '
+
+  grep -q 'AC_CHECK_DECLS(kSBXProfilePureComputation' "$configure_ac" ||
+    die "Failed to add the SDK 27 sandbox declaration probe"
+  grep -q 'ac_cv_have_decl_kSBXProfilePureComputation' "$configure_ac" ||
+    die "Failed to gate the Darwin sandbox on the SDK 27 declaration probe"
+}
+
 patch_awslc_cipher_compat() {
   local src="$1"
   local ctr_mt_c="${src}/cipher-ctr-mt.c"
   local cipher_c="${src}/cipher.c"
   local chachapoly_mt_c="${src}/cipher-chachapoly-libcrypto-mt.c"
+  local kex_c="${src}/kex.c"
+  local myproposal_h="${src}/myproposal.h"
+
+  log "Removing AWS-LC-incompatible ChaCha20-Poly1305-MT from default proposals"
+  [[ -f "$myproposal_h" ]] || die "Expected upstream myproposal.h not found: $myproposal_h"
+  rewrite_with_awk "$myproposal_h" '
+    /^#ifdef WITH_OPENSSL$/ && !patched {
+      print "#if defined(WITH_OPENSSL) && !defined(HPNSSH_AWSLC)"
+      patched = 1
+      next
+    }
+    { print }
+    END {
+      if (!patched)
+        exit 42
+    }
+  '
+
+  log "Disabling AWS-LC-incompatible ChaCha20-Poly1305-MT promotion"
+  [[ -f "$kex_c" ]] || die "Expected upstream kex.c not found: $kex_c"
+  rewrite_with_awk "$kex_c" '
+    /^#ifdef WITH_OPENSSL$/ {
+      pending_ifdef = 1
+      pending_line = $0
+      next
+    }
+    pending_ifdef && /if \(\(strcmp\(newkeys->enc.name, "chacha20-poly1305@openssh[.]com"\)/ {
+      print "#if defined(WITH_OPENSSL) && !defined(HPNSSH_AWSLC)"
+      print
+      pending_ifdef = 0
+      next
+    }
+    pending_ifdef {
+      print pending_line
+      pending_ifdef = 0
+    }
+    { print }
+    END {
+      if (pending_ifdef) {
+        print pending_line
+      }
+    }
+  '
 
   log "Applying AWS-LC compatibility patch for AES-CTR-MT"
   [[ -f "$ctr_mt_c" ]] || die "Expected upstream cipher-ctr-mt.c not found: $ctr_mt_c"
@@ -733,6 +813,10 @@ patch_awslc_cipher_compat() {
     { print }
   '
 
+  grep -q '#if defined(WITH_OPENSSL) && !defined(HPNSSH_AWSLC)' "$myproposal_h" ||
+    die "Failed to remove ChaCha20-Poly1305-MT from AWS-LC default proposals"
+  grep -q '#if defined(WITH_OPENSSL) && !defined(HPNSSH_AWSLC)' "$kex_c" ||
+    die "Failed to disable ChaCha20-Poly1305-MT promotion for AWS-LC"
   grep -q 'defined(HPNSSH_AWSLC)' "$ctr_mt_c" ||
     die "Failed to patch cipher-ctr-mt.c for AWS-LC"
   grep -q 'AWS-LC native AES-CTR' "$cipher_c" ||
@@ -763,6 +847,7 @@ apply_macos_patches() {
 
   patch_version_marker "$src"
   patch_default_port "$src"
+  patch_macos_sdk27_sandbox_compat "$src"
 
   if is_awslc_build; then
     patch_awslc_cipher_compat "$src"
