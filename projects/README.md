@@ -13,12 +13,12 @@ only for controlled comparisons and are not published as bottles.
 ## Supported Profile
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 ```
 
 This profile matches the published Homebrew formula:
 
-- HPN-SSH `18.11.0`, based on OpenSSH `10.5p1`
+- HPN-SSH `18.11.1`, based on OpenSSH `10.5p1`
 - Homebrew AWS-LC, validated with `5.9.0`
 - macOS system zlib and libedit
 - PAM and Apple Kerberos/GSSAPI

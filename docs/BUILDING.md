@@ -26,7 +26,7 @@ archives.
 Use the exact release tag for a reproducible source selection:
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 ```
 
 Omit `--tag` to resolve the highest tag in the configured `18.11` series:
@@ -51,7 +51,7 @@ create its source tree as the current user. Build first, then elevate only the
 install target for the configured `/opt/hpnssh-awslc-system-zlib` prefix:
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 sudo make -C build-awslc-system-zlib/runs/<run>/hpn-ssh install-nokeys
 ```
 
@@ -69,15 +69,16 @@ Run the upstream test target explicitly:
 
 ```sh
 scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
-  --tag hpn-18.11.0 --run-tests
+  --tag hpn-18.11.1 --run-tests
 ```
 
-The full regression suite can stop in the recursive SCP test on macOS when
-`/usr/bin/diff -r` encounters the suite's absolute symlink loop. This is a
-test-harness interaction, not evidence that a failed transfer should be
-ignored. The release build was separately validated with the unit/KEX tests,
-functional key scanning, formula tests, code-signature checks, and a relocated
-bottle pour.
+The 18.11.1 release validation ran all executable non-privileged regressions
+except the upstream `scp3` and `scp-resume` macOS harness cases, where
+`/usr/bin/diff -r` encounters the suite's absolute symlink loop. The
+`percent.sh` test used `/usr/bin/openssl` only to produce test-vector output in
+the format expected by the harness; the shipped binaries remain linked to
+AWS-LC. Unit, KEX, host-key, miscellaneous, formula, code-signature, and
+cross-prefix bottle-pour checks passed.
 
 Every normal build validates:
 
@@ -123,11 +124,12 @@ comparison wrapper.
 
 ## Source Provenance
 
-The published 18.11.0 build used upstream commit:
+The published 18.11.1 build used upstream commit:
 
 ```text
-1bd56196268fe2e23ed7c9b344b76f38d77a2fd3
+f4cb96a30b1128a77737e5f1d00b4ec054633a42
 ```
 
-The formula records the source archive checksum. The binary bottle checksum is
-listed in [Packaging](PACKAGING.md).
+The source archive SHA-256 is
+`225238697414a73049770d87fab2453ab5871c1ae55c8853e4530ca5f2591239`.
+The binary bottle checksum is listed in [Packaging](PACKAGING.md).

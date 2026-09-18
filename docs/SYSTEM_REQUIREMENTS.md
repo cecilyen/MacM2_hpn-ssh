@@ -12,7 +12,7 @@ not an Intel build and does not replace Apple's system OpenSSH.
 | Validated host | 2023 MacBook Pro, M2 Max, 32 GB, macOS 26.6.2 |
 | Homebrew prefix | `/opt/homebrew` |
 | Formula | `cecilyen/hpnssh/hpnssh-awslc` |
-| HPN-SSH | `18.11.0`, based on OpenSSH `10.5p1` |
+| HPN-SSH | `18.11.1`, based on OpenSSH `10.5p1` |
 | Crypto | Homebrew `aws-lc`, validated with `5.9.0` |
 | Compression | macOS `/usr/lib/libz.1.dylib` |
 | Line editing | macOS `/usr/lib/libedit.3.dylib` for `hpnsftp` |
@@ -41,7 +41,7 @@ libraries, and the Kerberos framework.
 | Client configuration | `/opt/homebrew/etc/hpnssh/ssh_config` |
 | Server configuration | `/opt/homebrew/etc/hpnssh/sshd_config` |
 | Global known hosts | `/opt/homebrew/etc/hpnssh/ssh_known_hosts` and `ssh_known_hosts2` |
-| Formula keg | `/opt/homebrew/Cellar/hpnssh-awslc/18.11.0` |
+| Formula keg | `/opt/homebrew/Cellar/hpnssh-awslc/18.11.1` |
 
 The formula uses `install-nokeys`. No host private keys are embedded in the
 bottle, and no daemon or `launchd` service is installed or started.
@@ -87,7 +87,7 @@ brew test hpnssh-awslc
 Expected version:
 
 ```text
-OpenSSH_10.5p1_hpn18.11.0, AWS-LC 5.9.0
+OpenSSH_10.5p1_hpn18.11.1, AWS-LC 5.9.0
 ```
 
 ## References

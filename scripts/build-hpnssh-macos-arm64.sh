@@ -31,7 +31,7 @@ Build HPN-SSH from the official rapier1/hpn-ssh repository for macOS on
 Apple Silicon with arm64, Homebrew libcrypto, Homebrew zlib, PAM, and Kerberos.
 
 Options:
-  --tag TAG              Build an explicit tag, for example hpn-18.11.0.
+  --tag TAG              Build an explicit tag, for example hpn-18.11.1.
   --version-series X.Y   Resolve the latest hpn-X.Y.z tag. Default: 18.11.
   --prefix PATH          Configure isolated install prefix. Default: /opt/hpnssh.
   --workdir PATH         Build workspace. Default: ./build.
@@ -61,7 +61,7 @@ Environment:
 Examples:
   scripts/build-hpnssh-macos-arm64.sh
   scripts/build-hpnssh-macos-arm64.sh --prefix /usr/local/hpnssh
-  scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.11.0
+  scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.11.1
 USAGE
 }
 
@@ -209,7 +209,7 @@ done
 
 [[ "$VERSION_SERIES" =~ ^[0-9]+[.][0-9]+$ ]] || die "--version-series must look like 18.11"
 if [[ -n "$TAG" ]]; then
-  [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.11.0"
+  [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.11.1"
 fi
 case "$ZLIB_MODE" in
   homebrew|system) ;;

@@ -10,14 +10,14 @@ direct-archive tooling.
 | Field | Value |
 | --- | --- |
 | Formula | `cecilyen/hpnssh/hpnssh-awslc` |
-| Release tag | `hpnssh-awslc-18.11.0-macos26-arm64` |
+| Release tag | `hpnssh-awslc-18.11.1-macos26-arm64` |
 | Bottle tag | `arm64_tahoe` |
 | Runtime Homebrew dependency | `aws-lc` |
-| Bottle file | `hpnssh-awslc-18.11.0.arm64_tahoe.bottle.tar.gz` |
-| SHA-256 | `798f6a4b6964486e88a96ebccc182840720f766c5af37e7e5d54e6a0ddddc62c` |
+| Bottle file | `hpnssh-awslc-18.11.1.arm64_tahoe.bottle.tar.gz` |
+| SHA-256 | `46f63781d3eb61fae765b4eef2c36132aa116995fe1e3ba54511c98c3c03ce83` |
 
 Release page:
-[HPN-SSH 18.11.0 AWS-LC bottle](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.0-macos26-arm64)
+[HPN-SSH 18.11.1 AWS-LC bottle](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.1-macos26-arm64)
 
 Install it through Homebrew so dependency handling, relocation, and checksum
 verification are automatic:
@@ -35,12 +35,13 @@ local SSH configuration, or host private keys.
 
 Before publication, the bottle was:
 
-1. Built with `brew install --build-bottle`.
-2. Checked with `brew audit --strict` and `brew test`.
-3. Poured into a second Homebrew prefix to exercise relocation.
+1. Built with `brew install --build-bottle` and packaged as rebuild `0`.
+2. Checked with `brew style`, `brew audit --strict`, and `brew test`.
+3. Downloaded from the public GitHub release into a shorter, second Homebrew
+   prefix to exercise padded-prefix relocation.
 4. Checked for ARM64 Mach-O binaries, ad-hoc signatures, port `22`, runtime
    linkage, and absence of build-prefix strings and host private keys.
-5. Downloaded from the public GitHub release and tested again.
+5. Passed `brew test` after the cross-prefix pour.
 
 The tap repository is the canonical location for its formula and bottle
 release process. The ignored `homebrew-tap/` directory in this workspace is
@@ -60,7 +61,7 @@ scripts/package-github-release.sh
 Default output:
 
 ```text
-release/hpnssh-18.11.0-macos26-arm64/
+release/hpnssh-18.11.1-macos26-arm64/
 ```
 
 Pass `--all-variants` only when all local comparison builds are intentional:

@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.11.0-macos26-arm64}"
+RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.11.1-macos26-arm64}"
 RELEASE_DIR="${RELEASE_DIR:-${ROOT_DIR}/release/${RELEASE_TAG}}"
 FORCE=0
 REQUIRE_ALL=0
@@ -19,7 +19,7 @@ Package latest validated HPN-SSH build outputs into GitHub Release-ready
 tarballs. Binaries that fail validation are skipped and recorded in SKIPPED.txt.
 
 Options:
-  --release-tag TAG   Release tag/directory name. Default: hpnssh-18.11.0-macos26-arm64.
+  --release-tag TAG   Release tag/directory name. Default: hpnssh-18.11.1-macos26-arm64.
   --release-dir PATH  Output directory. Default: ./release/<tag>.
   --force             Replace an existing release directory.
   --all-variants      Package every known local variant. Default: preferred AWS-LC + macOS zlib only.
@@ -227,7 +227,7 @@ package_variant() {
     return 0
   fi
 
-  if [[ "$version" != *"_hpn18.11.0"* ]]; then
+  if [[ "$version" != *"_hpn18.11.1"* ]]; then
     skip_variant "$name" "unexpected version output: ${version}"
     return 0
   fi

@@ -35,7 +35,7 @@ For a binary that will run only on an M2-class machine:
 ```sh
 HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -mcpu=apple-m2 -flto=thin -pipe" \
 HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip" \
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 ```
 
 Do not publish this as a general M1-and-newer bottle. Measure it against the
@@ -53,7 +53,7 @@ mkdir -p "$PGO_RAW"
 
 HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -flto=thin -pipe -fprofile-generate=${PGO_RAW}" \
 HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip -fprofile-generate=${PGO_RAW}" \
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 ```
 
 Train the generated `hpnssh` and `hpnscp` with representative hosts, file
@@ -78,7 +78,7 @@ PROF="$PWD/profiles/hpnssh.profdata"
 
 HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -flto=thin -pipe -fprofile-use=${PROF}" \
 HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip -fprofile-use=${PROF}" \
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 ```
 
 PGO affects HPN-SSH/OpenSSH objects, not the prebuilt AWS-LC or macOS system

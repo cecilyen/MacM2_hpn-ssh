@@ -13,7 +13,7 @@ running macOS 26.
 
 | Component | Version or setting |
 | --- | --- |
-| HPN-SSH | `18.11.0` |
+| HPN-SSH | `18.11.1` |
 | OpenSSH base | `10.5p1` |
 | Crypto | Homebrew AWS-LC, validated with `5.9.0` |
 | Compression | macOS system zlib |
@@ -25,7 +25,19 @@ running macOS 26.
 Release formula and binaries:
 
 - [Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh)
-- [HPN-SSH 18.11.0 bottle release](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.0-macos26-arm64)
+- [HPN-SSH 18.11.1 bottle release](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.1-macos26-arm64)
+
+### Upstream 18.11.1 Changes
+
+- Preserves strict-KEX signaling during rekeys, fixing SFTP sequence-number
+  desynchronization observed with MobaXterm/SecureBlackbox clients.
+- Applies `DisableMTAES` on later rekeys as well as the initial key exchange.
+
+The AWS-LC profile already disables HPN-SSH's custom AES-MT path, so the
+`DisableMTAES` fix mainly affects builds using another crypto provider. The
+SFTP rekey interoperability fix applies to this build. See the
+[official release](https://github.com/rapier1/hpn-ssh/releases/tag/hpn-18.11.1)
+and [upstream comparison](https://github.com/rapier1/hpn-ssh/compare/hpn-18.11.0...hpn-18.11.1).
 
 ## Install
 
@@ -38,7 +50,7 @@ hpnssh -V
 Expected output:
 
 ```text
-OpenSSH_10.5p1_hpn18.11.0, AWS-LC 5.9.0
+OpenSSH_10.5p1_hpn18.11.1, AWS-LC 5.9.0
 ```
 
 Homebrew installs the `aws-lc` runtime dependency. zlib, libedit, PAM, and
@@ -79,7 +91,7 @@ Clone and build the published profile:
 ```sh
 git clone https://github.com/cecilyen/MacM2_hpn-ssh.git
 cd MacM2_hpn-ssh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.0
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
 ```
 
 The script leaves the build under `build-awslc-system-zlib/runs/` and writes
