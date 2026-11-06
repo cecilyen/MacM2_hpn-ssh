@@ -1,11 +1,13 @@
 # Build Profiles
 
-One profile is supported for publication. The remaining wrappers are retained
-only for controlled comparisons and are not published as bottles.
+AWS-LC and OpenSSL source profiles share the current local release defaults.
+The local 18.12.1 builds are validated here. Bottle versions and publication
+are managed independently in the [Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh).
 
 | Status | Wrapper | Crypto | zlib / libedit | Direct-install prefix |
 | --- | --- | --- | --- | --- |
 | Supported | `build-hpnssh-macos-arm64-awslc-system-zlib.sh` | Homebrew AWS-LC | macOS / macOS | `/opt/hpnssh-awslc-system-zlib` |
+| Supported source build | `build-hpnssh-macos-arm64-openssl-system-zlib.sh` | Homebrew OpenSSL 4, or 3 | macOS / macOS | `/opt/hpnssh-openssl-system-zlib` |
 | Legacy comparison | `build-hpnssh-macos-arm64-awslc.sh` | Homebrew AWS-LC | Homebrew / Homebrew | `/opt/hpnssh-awslc` |
 | Legacy comparison | `build-hpnssh-macos-arm64-awslc-zlibng.sh` | Homebrew AWS-LC | zlib-ng-compat / Homebrew | `/opt/hpnssh-awslc-zlibng` |
 | Generic base | `build-hpnssh-macos-arm64.sh` | Homebrew OpenSSL 3 by default | Homebrew / Homebrew | `/opt/hpnssh` |
@@ -13,17 +15,18 @@ only for controlled comparisons and are not published as bottles.
 ## Supported Profile
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.12.1
+scripts/build-hpnssh-macos-arm64-openssl-system-zlib.sh --tag hpn-18.12.1
 ```
 
-This profile matches the published Homebrew formula:
+The current local source profiles use:
 
-- HPN-SSH `18.11.1`, based on OpenSSH `10.5p1`
-- Homebrew AWS-LC, validated with `5.9.0`
+- HPN-SSH `18.12.1`, based on OpenSSH `10.6p2`
+- Homebrew AWS-LC `5.12.0` or OpenSSL `4.1.0`
 - macOS system zlib and libedit
 - PAM and Apple Kerberos/GSSAPI
 - No BSM audit linkage
-- ARM64 ThinLTO publication flags
+- ARM64 ThinLTO, M1 instruction baseline, and M2 tuning from AGENTS.md
 - Port `22`
 - Stripped and ad-hoc signed executables
 

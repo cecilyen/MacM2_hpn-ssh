@@ -4,7 +4,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 REPO_URL="${HPNSSH_REPO_URL:-https://github.com/rapier1/hpn-ssh.git}"
-VERSION_SERIES="${HPNSSH_VERSION_SERIES:-18.11}"
+VERSION_SERIES="${HPNSSH_VERSION_SERIES:-18.12}"
 TAG="${HPNSSH_TAG:-}"
 PREFIX="${HPNSSH_PREFIX:-/opt/hpnssh}"
 WORKDIR="${HPNSSH_WORKDIR:-${ROOT_DIR}/build}"
@@ -31,8 +31,8 @@ Build HPN-SSH from the official rapier1/hpn-ssh repository for macOS on
 Apple Silicon with arm64, Homebrew libcrypto, Homebrew zlib, PAM, and Kerberos.
 
 Options:
-  --tag TAG              Build an explicit tag, for example hpn-18.11.1.
-  --version-series X.Y   Resolve the latest hpn-X.Y.z tag. Default: 18.11.
+  --tag TAG              Build an explicit tag, for example hpn-18.12.1.
+  --version-series X.Y   Resolve the latest hpn-X.Y.z tag. Default: 18.12.
   --prefix PATH          Configure isolated install prefix. Default: /opt/hpnssh.
   --workdir PATH         Build workspace. Default: ./build.
   --install              Run make install after a successful build.
@@ -46,7 +46,8 @@ Environment:
   HPNSSH_PREFIX          Same as --prefix.
   HPNSSH_WORKDIR         Same as --workdir.
   HPNSSH_VERSION_MARKER  Optional marker appended to SSH_HPN. Default: disabled.
-  HPNSSH_CPU_TARGET      Override the detected Apple -mcpu target, e.g. apple-m2.
+  HPNSSH_CPU_TARGET      Apple -mcpu target. Default: apple-m1.
+  HPNSSH_CPU_TUNE        Apple -mtune target. Default: apple-m2.
   HPNSSH_CRYPTO_NAME     Human-readable crypto provider name. Default: OpenSSL 3.
   HPNSSH_CRYPTO_FORMULA  Homebrew formula for libcrypto. Default: openssl@3.
   HPNSSH_CRYPTO_PREFIX   Explicit libcrypto prefix. OPENSSL_PREFIX is also honored.
@@ -56,12 +57,12 @@ Environment:
   HPNSSH_BASE_LDFLAGS    Override base linker optimization flags.
   HPNSSH_KERBEROS_ROOT   Kerberos root passed to configure. Default: /usr.
   HPNSSH_LOG_BASENAME    Build log basename. Default: hpnssh-build.
-  CC, CXX                Override Apple compiler paths.
+  CC, CXX                Override compiler paths. Homebrew LLVM is preferred.
 
 Examples:
   scripts/build-hpnssh-macos-arm64.sh
   scripts/build-hpnssh-macos-arm64.sh --prefix /usr/local/hpnssh
-  scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.11.1
+  scripts/build-hpnssh-macos-arm64.sh --tag hpn-18.12.1
 USAGE
 }
 
@@ -207,9 +208,9 @@ while (($#)); do
   esac
 done
 
-[[ "$VERSION_SERIES" =~ ^[0-9]+[.][0-9]+$ ]] || die "--version-series must look like 18.11"
+[[ "$VERSION_SERIES" =~ ^[0-9]+[.][0-9]+$ ]] || die "--version-series must look like 18.12"
 if [[ -n "$TAG" ]]; then
-  [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.11.1"
+  [[ "$TAG" =~ ^hpn-[0-9]+[.][0-9]+[.][0-9]+$ ]] || die "--tag must look like hpn-18.12.1"
 fi
 case "$ZLIB_MODE" in
   homebrew|system) ;;
@@ -294,15 +295,7 @@ ensure_brew_formula() {
     return 0
   fi
 
-  log "Homebrew formula $formula is missing required files; attempting brew install $formula" >&2
-  if [[ ! -w "$HOMEBREW_PREFIX" || ! -w "${HOMEBREW_PREFIX}/Cellar" || ! -w "${HOMEBREW_PREFIX}/opt" ]]; then
-    die "Homebrew formula $formula is not installed and ${HOMEBREW_PREFIX} is not writable by $(id -un). Ask the Homebrew owner or an administrator to run: ${BREW_BIN} install ${formula}"
-  fi
-
-  "$BREW_BIN" install "$formula" >&2
-  prefix="$(brew_prefix "$formula" || true)"
-  formula_has_files "$prefix" "$header" "$lib_glob" || die "Installed $formula but required files are still missing under $prefix"
-  printf '%s\n' "$prefix"
+  die "Homebrew formula $formula is missing required files. Review and run separately: ${BREW_BIN} install ${formula}"
 }
 
 CRYPTO_PREFIX="${CRYPTO_PREFIX_OVERRIDE:-$(ensure_brew_formula "$CRYPTO_FORMULA" "$CRYPTO_HEADER" "$CRYPTO_LIB_GLOB")}"
@@ -361,10 +354,18 @@ if [[ "$LIBEDIT_MODE" == "system" ]]; then
     die "system libedit linker stub not found in SDK: ${SDKROOT}/usr/lib/libedit.tbd"
 fi
 
-CC="${CC:-$(xcrun -find clang)}"
-CXX="${CXX:-$(xcrun -find clang++)}"
-AR="${AR:-$(xcrun -find ar)}"
-RANLIB="${RANLIB:-$(xcrun -find ranlib)}"
+LLVM_PREFIX="${HOMEBREW_PREFIX}/opt/llvm"
+if [[ -x "${LLVM_PREFIX}/bin/clang" ]]; then
+  CC="${CC:-${LLVM_PREFIX}/bin/clang}"
+  CXX="${CXX:-${LLVM_PREFIX}/bin/clang++}"
+  AR="${AR:-${LLVM_PREFIX}/bin/llvm-ar}"
+  RANLIB="${RANLIB:-${LLVM_PREFIX}/bin/llvm-ranlib}"
+else
+  CC="${CC:-$(xcrun -find clang)}"
+  CXX="${CXX:-$(xcrun -find clang++)}"
+  AR="${AR:-$(xcrun -find ar)}"
+  RANLIB="${RANLIB:-$(xcrun -find ranlib)}"
+fi
 STRIP="${STRIP:-$(xcrun -find strip)}"
 OTOOL="${OTOOL:-$(xcrun -find otool)}"
 CODESIGN="${CODESIGN:-/usr/bin/codesign}"
@@ -396,8 +397,8 @@ compiler_supports_linkflag() {
 ARCH_FLAGS="-arch arm64"
 compiler_supports_cflag $ARCH_FLAGS || die "Compiler does not accept required ARM64 flag: $ARCH_FLAGS"
 compiler_supports_linkflag $ARCH_FLAGS || die "Linker does not accept required ARM64 flag: $ARCH_FLAGS"
-compiler_supports_cflag -flto || die "Compiler does not accept required LTO flag: -flto"
-compiler_supports_linkflag -flto || die "Linker does not accept required LTO flag: -flto"
+compiler_supports_cflag -flto=thin || die "Compiler does not accept required LTO flag: -flto=thin"
+compiler_supports_linkflag -flto=thin || die "Linker does not accept required LTO flag: -flto=thin"
 
 detect_cpu_brand() {
   local brand
@@ -413,28 +414,8 @@ detect_cpu_brand() {
 
 CPU_BRAND="$(detect_cpu_brand)"
 
-CPU_CANDIDATES=()
-if [[ -n "${HPNSSH_CPU_TARGET:-}" ]]; then
-  CPU_CANDIDATES=("$HPNSSH_CPU_TARGET")
-else
-  case "$CPU_BRAND" in
-    *M5*) CPU_CANDIDATES=(apple-m5 apple-m4 apple-m3 apple-m2 apple-m1) ;;
-    *M4*) CPU_CANDIDATES=(apple-m4 apple-m3 apple-m2 apple-m1) ;;
-    *M3*) CPU_CANDIDATES=(apple-m3 apple-m2 apple-m1) ;;
-    *M2*) CPU_CANDIDATES=(apple-m2 apple-m1) ;;
-    *M1*) CPU_CANDIDATES=(apple-m1) ;;
-    *) CPU_CANDIDATES=(apple-m4 apple-m3 apple-m2 apple-m1) ;;
-  esac
-fi
-
-CPU_FLAG=""
-for cpu in "${CPU_CANDIDATES[@]}"; do
-  if compiler_supports_cflag "-mcpu=${cpu}"; then
-    CPU_FLAG="-mcpu=${cpu}"
-    break
-  fi
-done
-[[ -n "$CPU_FLAG" ]] || warn "No Apple -mcpu target was accepted by the compiler; continuing with ARM64 arch flags only."
+CPU_FLAG="-mcpu=${HPNSSH_CPU_TARGET:-apple-m1}"
+CPU_TUNE_FLAG="-mtune=${HPNSSH_CPU_TUNE:-apple-m2}"
 
 NCPU="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 1)"
 [[ "$NCPU" =~ ^[0-9]+$ && "$NCPU" -gt 0 ]] || NCPU=1
@@ -442,12 +423,11 @@ NCPU="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null |
 if [[ -n "${HPNSSH_BASE_OPT_FLAGS:-}" ]]; then
   BASE_OPT_FLAGS="${HPNSSH_BASE_OPT_FLAGS}"
 else
-  BASE_OPT_FLAGS="${ARCH_FLAGS} -O3 -flto -g0"
-  if [[ -n "$CPU_FLAG" ]]; then
-    BASE_OPT_FLAGS="${BASE_OPT_FLAGS} ${CPU_FLAG}"
-  fi
+  BASE_OPT_FLAGS="-O3 ${ARCH_FLAGS} ${CPU_FLAG} ${CPU_TUNE_FLAG} -flto=thin -pipe"
 fi
-BASE_LINK_FLAGS="${HPNSSH_BASE_LDFLAGS:-${ARCH_FLAGS} -flto}"
+BASE_LINK_FLAGS="${HPNSSH_BASE_LDFLAGS:-${ARCH_FLAGS} ${CPU_FLAG} ${CPU_TUNE_FLAG} -flto=thin -Wl,-dead_strip}"
+compiler_supports_cflag $BASE_OPT_FLAGS || die "Compiler does not accept optimization flags: $BASE_OPT_FLAGS"
+compiler_supports_linkflag $BASE_LINK_FLAGS || die "Linker does not accept optimization flags: $BASE_LINK_FLAGS"
 
 ZLIB_CPPFLAGS=""
 ZLIB_LDFLAGS=""
@@ -504,7 +484,7 @@ log "SDKROOT: $SDKROOT"
 log "Kerberos root: $KERBEROS_ROOT"
 log "Kerberos config: $KRB5CONF"
 log "CPU brand/model: $CPU_BRAND"
-log "Selected CPU flag: ${CPU_FLAG:-none}"
+log "Default CPU target/tuning: $CPU_FLAG $CPU_TUNE_FLAG (effective flags logged above)"
 log "Parallel jobs: $NCPU"
 log "Crypto prefix: $CRYPTO_PREFIX"
 log "zlib prefix: $ZLIB_PREFIX"
@@ -532,9 +512,9 @@ resolve_latest_tag() {
 
 if [[ -z "$TAG" ]]; then
   TAG="$(resolve_latest_tag "$VERSION_SERIES")"
+  [[ "$TAG" == hpn-"$VERSION_SERIES".* ]] || die "Resolved tag $TAG does not match requested series $VERSION_SERIES"
 fi
 [[ -n "$TAG" ]] || die "Could not resolve HPN-SSH tag."
-[[ "$TAG" == hpn-"$VERSION_SERIES".* ]] || die "Resolved tag $TAG does not match requested series $VERSION_SERIES"
 log "Resolved tag: $TAG"
 HPN_VERSION="${TAG#hpn-}"
 EXPECTED_HPN_SUFFIX="_hpn${HPN_VERSION}"

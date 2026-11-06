@@ -21,15 +21,47 @@ The preferred wrapper uses Homebrew LLVM for the compiler, archiver, and
 indexer. Using matching `llvm-ar` and `llvm-ranlib` is required for ThinLTO
 archives.
 
-## Build The Published Profile
+## Build Current Source Profiles
+
+The source wrappers currently select the latest tag in the `18.12` series.
+Both use Homebrew LLVM and these local release defaults from AGENTS.md:
+
+```sh
+CFLAGS="-O3 -arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -pipe"
+CXXFLAGS="-O3 -arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -pipe"
+LDFLAGS="-arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -Wl,-dead_strip"
+```
+
+Compile either provider from the same release:
+
+```sh
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.12.1
+scripts/build-hpnssh-macos-arm64-openssl-system-zlib.sh --tag hpn-18.12.1
+```
+
+The OpenSSL wrapper prefers installed `openssl@4`, then `openssl@3`. Set
+`HPNSSH_CRYPTO_FORMULA` and `HPNSSH_CRYPTO_PREFIX` to choose explicitly.
+Upstream 18.12.1 accepts both OpenSSL 3 and 4. Missing dependencies stop the
+build and print a separate installation command for review.
+
+Both profiles use macOS system zlib and libedit, PAM, Kerberos, and port 22.
+They strip debug symbols and apply ad-hoc signatures after linking. Outputs
+remain in separate `build-awslc-system-zlib/runs/` and
+`build-openssl-system-zlib/runs/` directories. These local source builds do
+not update bottles; that publication workflow belongs to the separate tap.
+
+## Reproduce The Published Profile
 
 Use the exact release tag for a reproducible source selection:
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
+HPNSSH_BASE_OPT_FLAGS="-O3 -arch arm64 -flto=thin -pipe" \
+HPNSSH_BASE_LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip" \
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
+  --version-series 18.11 --tag hpn-18.11.1
 ```
 
-Omit `--tag` to resolve the highest tag in the configured `18.11` series:
+Omit `--tag` to resolve the highest tag in the default `18.12` series:
 
 ```sh
 scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh
@@ -51,7 +83,7 @@ create its source tree as the current user. Build first, then elevate only the
 install target for the configured `/opt/hpnssh-awslc-system-zlib` prefix:
 
 ```sh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.12.1
 sudo make -C build-awslc-system-zlib/runs/<run>/hpn-ssh install-nokeys
 ```
 
@@ -69,8 +101,21 @@ Run the upstream test target explicitly:
 
 ```sh
 scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh \
-  --tag hpn-18.11.1 --run-tests
+  --tag hpn-18.12.1 --run-tests
 ```
+
+The 2026-11-06 local 18.12.1 validation passed 869 upstream unit tests per
+provider, 12 SSH cipher/rekey checks across all four client/server pairings,
+and four SFTP upload/download round trips. Transfer tests used 4 MiB payloads,
+`curve25519-sha256`, and a forced 1 MiB rekey limit over a local pipe. Test
+keys and payloads stayed under `/private/tmp` and were removed afterward.
+All 14 executables per provider passed strict signature verification. The
+full upstream regression target was not run for these local builds.
+
+The OpenSSL AES-CTR-MT path logged `pthread_join failure: Invalid thread id`
+at debug level during forced rekeying; byte comparisons still passed. This
+upstream threading diagnostic remains unresolved. Validation details are in
+`logs/hpnssh-18.12.1-validation-20261106.log` and the two provider unit logs.
 
 The 18.11.1 release validation ran all executable non-privileged regressions
 except the upstream `scp3` and `scp-resume` macOS harness cases, where
@@ -94,9 +139,9 @@ Every normal build validates:
 ## Release Flags
 
 ```sh
-CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
-CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
-LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
+CFLAGS="-O3 -arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -pipe"
+CXXFLAGS="-O3 -arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -pipe"
+LDFLAGS="-arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -Wl,-dead_strip"
 ```
 
 The wrapper also reads the SDK path from `xcrun`, runs `autoreconf -fi`, and
@@ -115,6 +160,7 @@ uses `sysctl -n hw.ncpu` for parallel `make`.
 | `HPNSSH_ZLIB_MODE` | `homebrew` or `system` |
 | `HPNSSH_LIBEDIT_MODE` | `homebrew`, `system`, or `disabled` |
 | `HPNSSH_CPU_TARGET` | Shared-builder `-mcpu` target when base flags are not overridden |
+| `HPNSSH_CPU_TUNE` | Shared-builder `-mtune` target when base flags are not overridden |
 | `HPNSSH_BASE_OPT_FLAGS` | C and C++ optimization flags |
 | `HPNSSH_BASE_LDFLAGS` | Linker optimization flags |
 | `CC`, `CXX`, `AR`, `RANLIB` | Compiler and archive tools |
@@ -123,6 +169,16 @@ See [Build profiles](../projects/README.md) before selecting a legacy
 comparison wrapper.
 
 ## Source Provenance
+
+The current local source builds use [upstream tag hpn-18.12.1](https://github.com/rapier1/hpn-ssh/tree/hpn-18.12.1),
+based on OpenSSH 10.6p2, at commit:
+
+```text
+f2d16e85bf7c0026f5b360b9f97655d39a40fea6
+```
+
+The 2026-11-06 builds use AWS-LC 5.12.0 or OpenSSL 4.1.0 with Homebrew
+LLVM 23.1.5 and a macOS 26.0 deployment target.
 
 The published 18.11.1 build used upstream commit:
 

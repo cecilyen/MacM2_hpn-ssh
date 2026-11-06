@@ -6,6 +6,7 @@
 /build-awslc/
 /build-awslc-system-zlib/
 /build-awslc-zlibng/
+/build-openssl-system-zlib/
 
 # Generated logs, profiles, and release output
 /logs/

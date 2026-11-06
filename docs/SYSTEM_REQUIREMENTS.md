@@ -1,9 +1,26 @@
 # System Requirements
 
-The published bottle is a macOS 26 Tahoe, Apple Silicon `arm64` package. It is
-not an Intel build and does not replace Apple's system OpenSSH.
+The source builds and recorded bottles target macOS 26 Tahoe on Apple
+Silicon `arm64`. Current bottle versions and requirements are maintained in
+the [Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh).
 
-## Supported Runtime
+## Current Source Builds
+
+The 2026-11-06 source builds use HPN-SSH 18.12.1 (OpenSSH 10.6p2), Homebrew
+LLVM 23.1.5, and a macOS 26.0 deployment target. Both profiles use system
+zlib, libedit, PAM, and Apple Kerberos. The selected crypto library is the
+only Homebrew runtime dependency:
+
+| Profile | Validated crypto library | Required dylib |
+| --- | --- | --- |
+| AWS-LC | `aws-lc` 5.12.0 | `/opt/homebrew/opt/aws-lc/lib/libcrypto.dylib` |
+| OpenSSL | `openssl@4` 4.1.0 | `/opt/homebrew/opt/openssl@4/lib/libcrypto.4.dylib` |
+
+The OpenSSL wrapper also accepts installed `openssl@3`. Its runtime dependency
+then follows that selection. Crypto libraries are not interchangeable after
+linking; rebuild when changing providers or an incompatible library ABI.
+
+## Recorded 18.11.1 Bottle Runtime
 
 | Requirement | Supported value |
 | --- | --- |
@@ -58,7 +75,7 @@ Source compilation additionally requires:
 brew install autoconf automake libtool llvm pkgconf aws-lc
 ```
 
-The release was built with Homebrew Clang 23.1.1 and macOS SDK 27.0. The
+The recorded 18.11.1 release was built with Homebrew Clang 23.1.1 and macOS SDK 27.0. The
 formula and wrapper discover their active SDK and Homebrew prefixes instead of
 hard-coding the Cellar version paths.
 

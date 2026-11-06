@@ -5,7 +5,14 @@ The supported binary distribution is the bottle in the separate
 This repository contains source-build, validation, benchmark, cleanup, and
 direct-archive tooling.
 
-## Published Bottle
+## Homebrew Publication
+
+The tap maintains its own formulae, bottles, and release notes. Check the
+[tap releases](https://github.com/cecilyen/homebrew-hpnssh/releases) for current
+versions. Source-build and direct-archive updates in this repository do not
+change the tap.
+
+## Recorded 18.11.1 Bottle
 
 | Field | Value |
 | --- | --- |
@@ -61,7 +68,7 @@ scripts/package-github-release.sh
 Default output:
 
 ```text
-release/hpnssh-18.11.1-macos26-arm64/
+release/hpnssh-18.12.1-macos26-arm64/
 ```
 
 Pass `--all-variants` only when all local comparison builds are intentional:
@@ -69,6 +76,17 @@ Pass `--all-variants` only when all local comparison builds are intentional:
 ```sh
 scripts/package-github-release.sh --all-variants
 ```
+
+Package both current AWS-LC and OpenSSL profiles, requiring both to pass:
+
+```sh
+scripts/package-github-release.sh --current-variants --require-all
+```
+
+The required HPN-SSH version is derived from `--release-tag`, so older
+source builds cannot be mislabeled as the current release. Archives preserve
+the configured helper paths and are intended for manual testing. Use the
+matching source build's installation target when deploying a server.
 
 The packager validates version, ARM64 architecture, signatures, preferred
 system-libedit linkage, and absence of `libbsm`. Do not publish an archive

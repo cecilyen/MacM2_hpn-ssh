@@ -1,43 +1,39 @@
 # MacM2 HPN-SSH
 
-Build scripts and release documentation for an isolated Apple Silicon build of
-[HPN-SSH](https://github.com/rapier1/hpn-ssh). The supported package is a
-macOS 26 ARM64 Homebrew bottle linked to AWS-LC. It does not replace Apple's
-OpenSSH or Homebrew OpenSSH.
+Build scripts and documentation for isolated Apple Silicon builds of
+[HPN-SSH](https://github.com/rapier1/hpn-ssh), using AWS-LC or OpenSSL with
+macOS system zlib and libedit. Homebrew packages are maintained in the
+separate [Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh).
 
-The repository name reflects the M2 Max validation host. The release uses
-generic ARM64 flags and is intended for M1 and newer Apple Silicon systems
-running macOS 26.
+The repository name reflects the M2 Max validation host. Current source builds
+target the M1 instruction baseline with M2 tuning and macOS 26.0 deployment.
 
-## Current Release
+## Current Source Builds
 
 | Component | Version or setting |
 | --- | --- |
-| HPN-SSH | `18.11.1` |
-| OpenSSH base | `10.5p1` |
-| Crypto | Homebrew AWS-LC, validated with `5.9.0` |
+| HPN-SSH | `18.12.1` |
+| OpenSSH base | `10.6p2` |
+| Crypto | AWS-LC `5.12.0` or OpenSSL `4.1.0` |
+| Compiler | Homebrew LLVM `23.1.5` |
 | Compression | macOS system zlib |
 | Line editing | macOS system libedit |
 | Security integration | PAM and Apple Kerberos; no BSM audit linkage |
 | Platform | macOS 26 Tahoe, Apple Silicon `arm64` |
 | Default client and server port | `22` |
 
-Release formula and binaries:
+The 2026-11-06 validation passed 869 unit tests per provider, 12 SSH
+cipher/rekey checks, and four SFTP round trips. All 14 executables per variant
+were stripped, signed, and checked. See [Building](docs/BUILDING.md) for
+source provenance, validation details, and the OpenSSL AES-CTR-MT rekey
+diagnostic observed during testing.
 
-- [Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh)
-- [HPN-SSH 18.11.1 bottle release](https://github.com/cecilyen/homebrew-hpnssh/releases/tag/hpnssh-awslc-18.11.1-macos26-arm64)
+## Homebrew Distribution
 
-### Upstream 18.11.1 Changes
-
-- Preserves strict-KEX signaling during rekeys, fixing SFTP sequence-number
-  desynchronization observed with MobaXterm/SecureBlackbox clients.
-- Applies `DisableMTAES` on later rekeys as well as the initial key exchange.
-
-The AWS-LC profile already disables HPN-SSH's custom AES-MT path, so the
-`DisableMTAES` fix mainly affects builds using another crypto provider. The
-SFTP rekey interoperability fix applies to this build. See the
-[official release](https://github.com/rapier1/hpn-ssh/releases/tag/hpn-18.11.1)
-and [upstream comparison](https://github.com/rapier1/hpn-ssh/compare/hpn-18.11.0...hpn-18.11.1).
+Formulae, bottle versions, and runtime dependencies are maintained in the
+[Homebrew tap](https://github.com/cecilyen/homebrew-hpnssh). Check its
+[releases](https://github.com/cecilyen/homebrew-hpnssh/releases) for available
+binaries and checksums; a source-build update here does not update a bottle.
 
 ## Install
 
@@ -47,11 +43,7 @@ brew install hpnssh-awslc
 hpnssh -V
 ```
 
-Expected output:
-
-```text
-OpenSSH_10.5p1_hpn18.11.1, AWS-LC 5.9.0
-```
+`hpnssh -V` reports the installed bottle's HPN-SSH and crypto-library versions.
 
 Homebrew installs the `aws-lc` runtime dependency. zlib, libedit, PAM, and
 Kerberos are supplied by macOS.
@@ -86,24 +78,29 @@ Install build dependencies:
 brew install autoconf automake libtool llvm pkgconf aws-lc
 ```
 
-Clone and build the published profile:
+Clone and build the current AWS-LC source profile:
 
 ```sh
 git clone https://github.com/cecilyen/MacM2_hpn-ssh.git
 cd MacM2_hpn-ssh
-scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.11.1
+scripts/build-hpnssh-macos-arm64-awslc-system-zlib.sh --tag hpn-18.12.1
 ```
 
 The script leaves the build under `build-awslc-system-zlib/runs/` and writes
 a timestamped log under `logs/`. It does not install by default. See
 [Building](docs/BUILDING.md) for installation, test, and override options.
 
-The release profile uses:
+For OpenSSL, use
+`scripts/build-hpnssh-macos-arm64-openssl-system-zlib.sh --tag hpn-18.12.1`.
+It selects installed `openssl@4`, then `openssl@3`, and writes to
+`build-openssl-system-zlib/runs/`.
+
+Current local source defaults follow AGENTS.md:
 
 ```sh
-CFLAGS="-O3 -arch arm64 -flto=thin -pipe"
-CXXFLAGS="-O3 -arch arm64 -flto=thin -pipe"
-LDFLAGS="-arch arm64 -flto=thin -Wl,-dead_strip"
+CFLAGS="-O3 -arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -pipe"
+CXXFLAGS="-O3 -arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -pipe"
+LDFLAGS="-arch arm64 -mcpu=apple-m1 -mtune=apple-m2 -flto=thin -Wl,-dead_strip"
 ```
 
 ## Compatibility Notes

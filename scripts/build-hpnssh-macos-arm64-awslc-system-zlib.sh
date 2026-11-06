@@ -36,8 +36,6 @@ export ZLIB_PREFIX="${ZLIB_PREFIX:-/usr}"
 export HPNSSH_PREFIX="${HPNSSH_PREFIX:-/opt/hpnssh-awslc-system-zlib}"
 export HPNSSH_WORKDIR="${HPNSSH_WORKDIR:-${ROOT_DIR}/build-awslc-system-zlib}"
 export HPNSSH_LOG_BASENAME="${HPNSSH_LOG_BASENAME:-hpnssh-awslc-system-zlib-build}"
-export HPNSSH_BASE_OPT_FLAGS="${HPNSSH_BASE_OPT_FLAGS:--O3 -arch arm64 -flto=thin -pipe}"
-export HPNSSH_BASE_LDFLAGS="${HPNSSH_BASE_LDFLAGS:--arch arm64 -flto=thin -Wl,-dead_strip}"
 
 if [[ -x /opt/homebrew/opt/llvm/bin/clang ]]; then
   export CC="${CC:-/opt/homebrew/opt/llvm/bin/clang}"

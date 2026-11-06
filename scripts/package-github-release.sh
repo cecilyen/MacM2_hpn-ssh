@@ -3,11 +3,12 @@ set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.11.1-macos26-arm64}"
+RELEASE_TAG="${RELEASE_TAG:-hpnssh-18.12.1-macos26-arm64}"
 RELEASE_DIR="${RELEASE_DIR:-${ROOT_DIR}/release/${RELEASE_TAG}}"
 FORCE=0
 REQUIRE_ALL=0
 ALL_VARIANTS=0
+CURRENT_VARIANTS=0
 PACKAGED=0
 SKIPPED=0
 
@@ -19,9 +20,10 @@ Package latest validated HPN-SSH build outputs into GitHub Release-ready
 tarballs. Binaries that fail validation are skipped and recorded in SKIPPED.txt.
 
 Options:
-  --release-tag TAG   Release tag/directory name. Default: hpnssh-18.11.1-macos26-arm64.
+  --release-tag TAG   Release tag/directory name. Default: hpnssh-18.12.1-macos26-arm64.
   --release-dir PATH  Output directory. Default: ./release/<tag>.
   --force             Replace an existing release directory.
+  --current-variants  Package current AWS-LC and OpenSSL system-zlib profiles.
   --all-variants      Package every known local variant. Default: preferred AWS-LC + macOS zlib only.
   --require-all       Fail if any known variant cannot be packaged.
   -h, --help          Show this help.
@@ -62,6 +64,10 @@ while (($#)); do
       ALL_VARIANTS=1
       shift
       ;;
+    --current-variants)
+      CURRENT_VARIANTS=1
+      shift
+      ;;
     --require-all)
       REQUIRE_ALL=1
       shift
@@ -75,6 +81,10 @@ while (($#)); do
       ;;
   esac
 done
+
+[[ "$RELEASE_TAG" =~ ^hpnssh-([0-9]+[.][0-9]+[.][0-9]+)- ]] ||
+  die "Release tag must start with hpnssh-X.Y.Z-"
+HPN_VERSION="${BASH_REMATCH[1]}"
 
 case "$RELEASE_DIR" in
   "$ROOT_DIR"/*) ;;
@@ -136,7 +146,7 @@ write_variant_readme() {
   cat >"${stage}/README.md" <<EOF
 # ${label}
 
-This archive contains ad-hoc signed HPN-SSH 18.11 arm64 binaries for macOS.
+This archive contains ad-hoc signed HPN-SSH ${HPN_VERSION} arm64 binaries for macOS 26.
 
 Variant: ${name}
 Source run: ${run_rel}
@@ -151,6 +161,10 @@ otool -L ./bin/hpnssh
 
 These binaries keep the upstream \`hpn\` command prefix and do not replace
 Apple's system OpenSSH binaries.
+
+This is a direct archive for manual testing, not a Homebrew bottle. Server,
+SFTP, and SCP helper paths retain the isolated prefix selected at configure
+time; use the matching source build's installation target for deployment.
 EOF
 }
 
@@ -163,8 +177,10 @@ copy_and_sign_binaries() {
   mkdir -p "$dest_dir"
   for candidate in "$src_dir"/hpn*; do
     [[ -f "$candidate" && -x "$candidate" ]] || continue
+    file "$candidate" | grep -q 'Mach-O .*executable arm64' || continue
     cp -p "$candidate" "$dest_dir/"
     codesign --force --sign - "${dest_dir}/$(basename "$candidate")" >/dev/null 2>&1
+    codesign --verify --strict "${dest_dir}/$(basename "$candidate")"
     copied=$((copied + 1))
   done
 
@@ -206,7 +222,7 @@ package_variant() {
     return 0
   fi
 
-  if [[ "$name" == "hpnssh-awslc-system-zlib" ]]; then
+  if [[ "$name" == "hpnssh-awslc-system-zlib" || "$name" == "hpnssh-openssl-system-zlib" ]]; then
     local hpnsftp_bin="${src_dir}/hpnsftp"
     [[ -x "$hpnsftp_bin" ]] || {
       skip_variant "$name" "missing executable hpnsftp in $(relative_path "$src_dir")"
@@ -220,6 +236,10 @@ package_variant() {
       skip_variant "$name" "hpnsftp still links Homebrew libedit"
       return 0
     fi
+    if ! otool -L "$hpnssh_bin" | grep -q '/usr/lib/libz[.][0-9].*dylib'; then
+      skip_variant "$name" "hpnssh does not link macOS system zlib"
+      return 0
+    fi
   fi
 
   if ! version="$("$hpnssh_bin" -V 2>&1)"; then
@@ -227,7 +247,8 @@ package_variant() {
     return 0
   fi
 
-  if [[ "$version" != *"_hpn18.11.1"* ]]; then
+  if [[ ! "$version" =~ _hpn([0-9]+[.][0-9]+[.][0-9]+) ]] ||
+      [[ "${BASH_REMATCH[1]}" != "$HPN_VERSION" ]]; then
     skip_variant "$name" "unexpected version output: ${version}"
     return 0
   fi
@@ -266,7 +287,11 @@ if [[ "$ALL_VARIANTS" -eq 1 ]]; then
   package_variant hpnssh-openssl3 "HPN-SSH with OpenSSL 3" build
   package_variant hpnssh-awslc "HPN-SSH with AWS-LC" build-awslc
   package_variant hpnssh-awslc-system-zlib "HPN-SSH with AWS-LC and macOS zlib" build-awslc-system-zlib
+  package_variant hpnssh-openssl-system-zlib "HPN-SSH with OpenSSL and macOS zlib" build-openssl-system-zlib
   package_variant hpnssh-awslc-zlibng "HPN-SSH with AWS-LC and zlib-ng" build-awslc-zlibng
+elif [[ "$CURRENT_VARIANTS" -eq 1 ]]; then
+  package_variant hpnssh-awslc-system-zlib "HPN-SSH with AWS-LC and macOS zlib" build-awslc-system-zlib
+  package_variant hpnssh-openssl-system-zlib "HPN-SSH with OpenSSL and macOS zlib" build-openssl-system-zlib
 else
   package_variant hpnssh-awslc-system-zlib "HPN-SSH with AWS-LC and macOS zlib" build-awslc-system-zlib
 fi
@@ -291,20 +316,24 @@ fi
 cat >"$NOTES" <<EOF
 # ${RELEASE_TAG}
 
-This release contains validated HPN-SSH 18.11 macOS arm64 binary archives.
+This release contains validated HPN-SSH ${HPN_VERSION} macOS arm64 binary archives.
 
 Packaged variants: ${PACKAGED}
 Skipped variants: ${SKIPPED}
 Generated: $(date -u '+%Y-%m-%dT%H:%M:%SZ')
 
-## Runtime Requirement
+## Runtime Requirements
 
-\`\`\`sh
-brew install aws-lc
-\`\`\`
+Install the crypto provider matching the archive: \`aws-lc\` for the AWS-LC
+variant, or the OpenSSL formula shown by \`otool-hpnssh.txt\` for the OpenSSL
+variant. The current OpenSSL source wrapper prefers installed \`openssl@4\`,
+then \`openssl@3\`. Crypto providers are not interchangeable at runtime.
 
 The preferred archive uses Homebrew AWS-LC for \`libcrypto\`, macOS system
 \`zlib\`, and macOS system \`libedit\` for \`hpnsftp\`.
+
+These direct archives are separate from the Homebrew bottle publication
+workflow in \`cecilyen/homebrew-hpnssh\`.
 
 ## Assets
 
